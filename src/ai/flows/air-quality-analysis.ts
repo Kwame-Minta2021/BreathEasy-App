@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -15,9 +16,9 @@ const AirQualityAnalysisInputSchema = z.object({
   co: z.number().describe('Carbon Monoxide level in ppm'),
   vocs: z.number().describe('Volatile Organic Compounds level in ppb'),
   ch4Lpg: z.number().describe('Methane/Liquified Petroleum Gas level in ppm'),
-  pm10: z.number().describe('Particulate Matter 1.0 level in ug/m3'),
-  pm25: z.number().describe('Particulate Matter 2.5 level in ug/m3'),
-  pm100: z.number().describe('Particulate Matter 10 level in ug/m3'),
+  pm1_0: z.number().describe('Particulate Matter 1.0 level in ug/m3'),
+  pm2_5: z.number().describe('Particulate Matter 2.5 level in ug/m3'),
+  pm10_0: z.number().describe('Particulate Matter 10 level in ug/m3'),
 });
 export type AirQualityAnalysisInput = z.infer<typeof AirQualityAnalysisInputSchema>;
 
@@ -34,7 +35,7 @@ const analyzeAirQualityPrompt = ai.definePrompt({
   name: 'analyzeAirQualityPrompt',
   input: {schema: AirQualityAnalysisInputSchema},
   output: {schema: AirQualityAnalysisOutputSchema},
-  prompt: `You are an AI assistant specializing in environmental health and safety. Your task is to analyze air quality readings and provide a summary of the potential health impacts based on the pollutant levels detected. Use the following air quality data to generate the summary:\n\nCO (Carbon Monoxide): {{co}} ppm\nVOCs (Volatile Organic Compounds): {{vocs}} ppb\nCH4/LPG (Methane/Liquified Petroleum Gas): {{ch4Lpg}} ppm\nPM1.0 (Particulate Matter 1.0): {{pm10}} ug/m3\nPM2.5 (Particulate Matter 2.5): {{pm25}} ug/m3\nPM10 (Particulate Matter 10): {{pm100}} ug/m3\n\nProvide a concise summary of the potential health impacts, focusing on the most significant risks associated with these pollutant levels.`, 
+  prompt: `You are an AI assistant specializing in environmental health and safety. Your task is to analyze air quality readings and provide a summary of the potential health impacts based on the pollutant levels detected. Use the following air quality data to generate the summary:\n\nCO (Carbon Monoxide): {{co}} ppm\nVOCs (Volatile Organic Compounds): {{vocs}} ppb\nCH4/LPG (Methane/Liquified Petroleum Gas): {{ch4Lpg}} ppm\nPM1.0 (Particulate Matter 1.0): {{pm1_0}} ug/m3\nPM2.5 (Particulate Matter 2.5): {{pm2_5}} ug/m3\nPM10 (Particulate Matter 10): {{pm10_0}} ug/m3\n\nProvide a concise summary of the potential health impacts, focusing on the most significant risks associated with these pollutant levels.`, 
 });
 
 const analyzeAirQualityFlow = ai.defineFlow(

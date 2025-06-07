@@ -1,13 +1,24 @@
+
 "use server";
 
-import type { AirQualityAnalysisInput } from '@/ai/flows/air-quality-analysis';
+import type { AirQualityAnalysisInput, AirQualityAnalysisOutput } from '@/ai/flows/air-quality-analysis';
 import { analyzeAirQuality } from '@/ai/flows/air-quality-analysis';
-import type { ActionRecommendationsInput } from '@/ai/flows/action-recommendations';
+import type { ActionRecommendationsInput, ActionRecommendationsOutput } from '@/ai/flows/action-recommendations';
 import { getActionRecommendations } from '@/ai/flows/action-recommendations';
-import type { AirQualityChatbotInput } from '@/ai/flows/air-quality-chatbot';
+import type { AirQualityChatbotInput, AirQualityChatbotOutput } from '@/ai/flows/air-quality-chatbot';
 import { airQualityChatbot } from '@/ai/flows/air-quality-chatbot';
 
-export async function fetchAiAnalysis(data: AirQualityAnalysisInput) {
+import type { Forecast24hInput, Forecast24hOutput } from '@/ai/flows/forecast-24h';
+import { forecast24h } from '@/ai/flows/forecast-24h';
+import type { ForecastWeeklyInput, ForecastWeeklyOutput } from '@/ai/flows/forecast-weekly';
+import { forecastWeekly } from '@/ai/flows/forecast-weekly';
+import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risks';
+import { getHealthRisks } from '@/ai/flows/health-risks';
+import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
+import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
+
+
+export async function fetchAiAnalysis(data: AirQualityAnalysisInput): Promise<AirQualityAnalysisOutput> {
   try {
     const result = await analyzeAirQuality(data);
     return result;
@@ -17,7 +28,7 @@ export async function fetchAiAnalysis(data: AirQualityAnalysisInput) {
   }
 }
 
-export async function fetchActionRecommendations(data: ActionRecommendationsInput) {
+export async function fetchActionRecommendations(data: ActionRecommendationsInput): Promise<ActionRecommendationsOutput> {
   try {
     const result = await getActionRecommendations(data);
     return result;
@@ -27,7 +38,7 @@ export async function fetchActionRecommendations(data: ActionRecommendationsInpu
   }
 }
 
-export async function askChatbot(data: AirQualityChatbotInput) {
+export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQualityChatbotOutput> {
   try {
     const result = await airQualityChatbot(data);
     return result;
@@ -35,4 +46,41 @@ export async function askChatbot(data: AirQualityChatbotInput) {
     console.error("Error interacting with chatbot:", error);
     return { answer: "The chatbot is currently unavailable. Please try again later." };
   }
+}
+
+// New actions for AI Analyzer and Reinforcement Analysis pages
+export async function fetch24hForecast(data: Forecast24hInput): Promise<Forecast24hOutput> {
+  try {
+    return await forecast24h(data);
+  } catch (error) {
+    console.error("Error fetching 24h forecast:", error);
+    return { prediction: "Failed to load 24-hour forecast.", confidence: "Low" };
+  }
+}
+
+export async function fetchWeeklyImpact(data: ForecastWeeklyInput): Promise<ForecastWeeklyOutput> {
+  try {
+    return await forecastWeekly(data);
+  } catch (error) {
+    console.error("Error fetching weekly impact:", error);
+    return { summary: "Failed to load weekly impact analysis." };
+  }
+}
+
+export async function fetchHealthRisks(data: HealthRisksInput): Promise<HealthRisksOutput> {
+  try {
+    return await getHealthRisks(data);
+  } catch (error) {
+    console.error("Error fetching health risks:", error);
+    return { riskLevel: "Unknown", symptoms: [], advice: ["Failed to load health advice."] };
+  }
+}
+
+export async function reportToControlRoom(data: ReportToControlRoomInput): Promise<ReportToControlRoomOutput> {
+    try {
+        return await reportToControlRoomFlow(data);
+    } catch (error) {
+        console.error("Error reporting to control room:", error);
+        return { confirmationMessage: "Failed to send report.", smsContent: `Error: ${data.message}`};
+    }
 }

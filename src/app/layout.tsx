@@ -1,11 +1,15 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
-import { Toaster } from "@/components/ui/toaster";
+import { AppLayout } from '@/components/layout/app-layout';
+import { AirQualityProvider } from '@/contexts/air-quality-context';
+import { APP_NAME } from '@/lib/constants';
+
 
 export const metadata: Metadata = {
-  title: 'BreathEasy',
-  description: 'Monitor and analyze your air quality with BreathEasy.',
+  title: APP_NAME,
+  description: `Monitor and analyze your air quality with ${APP_NAME}.`,
 };
 
 export default function RootLayout({
@@ -20,15 +24,18 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased min-h-screen flex flex-col">
+      <body className="font-body antialiased min-h-screen flex flex-col bg-background">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <AirQualityProvider>
+            <AppLayout>
+              {children}
+            </AppLayout>
+          </AirQualityProvider>
         </ThemeProvider>
       </body>
     </html>
