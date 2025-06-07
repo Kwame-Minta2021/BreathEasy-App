@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { CurrentReadingsGrid } from '@/components/dashboard/current-readings-grid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,19 +10,39 @@ import { format } from 'date-fns';
 
 export default function RealTimeDataPage() {
   const { currentData, historicalData, isLoadingReadings } = useAirQuality();
+  const [displayTimestamp, setDisplayTimestamp] = useState<string | null>(null);
 
-  const latestTimestamp = historicalData.length > 0 ? historicalData[historicalData.length -1].timestamp : new Date();
+  useEffect(() => {
+    if (isLoadingReadings) {
+      setDisplayTimestamp(null); // Or "Loading..." or keep previous value
+      return;
+    }
+
+    if (historicalData.length > 0) {
+      setDisplayTimestamp(format(historicalData[historicalData.length - 1].timestamp, "PPP p"));
+    } else if (currentData) { 
+      // Fallback to current time only if currentData is available (implying an update happened client-side)
+      // and historicalData is still empty (e.g., context just initialized)
+      setDisplayTimestamp(format(new Date(), "PPP p"));
+    } else {
+      // If no historical data and no current data (e.g. initial load state before context provides anything)
+      setDisplayTimestamp(null); 
+    }
+  }, [historicalData, currentData, isLoadingReadings]);
 
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Live Sensor Feeds</CardTitle>
-          {currentData && !isLoadingReadings && (
+          {displayTimestamp && !isLoadingReadings && (
             <p className="text-sm text-muted-foreground">
-              Last updated: {format(latestTimestamp, "PPP p")}
+              Last updated: {displayTimestamp}
             </p>
           )}
+           {isLoadingReadings && !displayTimestamp && (
+             <p className="text-sm text-muted-foreground">Fetching latest update time...</p>
+           )}
         </CardHeader>
         <CardContent>
           {isLoadingReadings && !currentData ? (
@@ -31,7 +51,7 @@ export default function RealTimeDataPage() {
               <p className="ml-3 text-muted-foreground">Fetching live data...</p>
             </div>
           ) : (
-            <CurrentReadingsGrid currentData={currentData} isLoading={isLoadingReadings} />
+            <CurrentReadingsGrid currentData={currentData} isLoading={isLoadingReadings && !currentData} />
           )}
         </CardContent>
       </Card>
