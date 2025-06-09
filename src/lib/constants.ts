@@ -14,5 +14,5 @@ export const INITIAL_POLLUTANTS_FOR_CHART: Array<Pollutant['id']> = ['co', 'pm2_
 
 export const APP_NAME = "BreathEasy";
 
-export const POLLING_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
+export const POLLING_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
