@@ -5,12 +5,17 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AirQualityProvider } from '@/contexts/air-quality-context';
 import { APP_NAME } from '@/lib/constants';
-
+import { SidebarProvider } from '@/components/ui/sidebar'; // Import SidebarProvider
+import { TooltipProvider } from '@/components/ui/tooltip'; // Import TooltipProvider
 
 export const metadata: Metadata = {
   title: APP_NAME,
   description: `Monitor and analyze your air quality with ${APP_NAME}.`,
 };
+
+const SIDEBAR_WIDTH = "16rem";
+const SIDEBAR_WIDTH_MOBILE = "18rem";
+const SIDEBAR_WIDTH_ICON = "3rem";
 
 export default function RootLayout({
   children,
@@ -31,11 +36,27 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AirQualityProvider>
-            <AppLayout>
-              {children}
-            </AppLayout>
-          </AirQualityProvider>
+          <TooltipProvider> {/* TooltipProvider now wraps SidebarProvider */}
+            {/* This div now handles the structural role previously in SidebarProvider */}
+            <div
+              style={
+                {
+                  "--sidebar-width": SIDEBAR_WIDTH,
+                  "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
+                  "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+                } as React.CSSProperties
+              }
+              className="group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar"
+            >
+              <SidebarProvider>
+                <AirQualityProvider>
+                  <AppLayout>
+                    {children}
+                  </AppLayout>
+                </AirQualityProvider>
+              </SidebarProvider>
+            </div>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

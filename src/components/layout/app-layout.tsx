@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
-  useSidebar, // Assuming useSidebar is correctly imported from the same file as SidebarProvider
+  useSidebar, 
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
@@ -38,36 +38,31 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [appLayoutMounted, setAppLayoutMounted] = React.useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
-  const { setTheme, resolvedTheme } = useTheme();
   
+  // ALWAYS call useSidebar unconditionally as per Rules of Hooks
+  // It will throw if SidebarProvider is not an ancestor, which is what we are debugging.
+  // The SidebarProvider itself manages providing a default context for SSR.
+  const sidebarHookResult = useSidebar();
+  const { setTheme, resolvedTheme } = useTheme(); // useTheme can also be called unconditionally
+
   React.useEffect(() => {
     setAppLayoutMounted(true);
   }, []);
 
-  // Defer calling useSidebar and accessing its properties until appLayoutMounted
-  const sidebarHookResult = appLayoutMounted ? useSidebar() : null;
-  const isMobile = sidebarHookResult ? sidebarHookResult.isMobile : false; // Default for SSR/pre-mount
-
   if (!appLayoutMounted) {
-    // Render null or a minimal placeholder if not mounted, to ensure SidebarProvider has initialized
-    return null; 
-  }
-
-  // Now that appLayoutMounted is true, sidebarHookResult should be valid if SidebarProvider has also mounted.
-  // If sidebarHookResult is still null here, it means SidebarProvider hasn't provided context yet,
-  // which would be unexpected if SidebarProvider itself waits for mount.
-
-  if (!sidebarHookResult) {
-    // This case indicates SidebarProvider might not have mounted and provided context yet.
-    // Return a loader or null to prevent errors from useSidebar() in child components like <Sidebar />
-     return (
-      <div className="flex min-h-screen items-center justify-center">
+    // This loading state is important to prevent hydration mismatches for UI
+    // elements that depend on the *final* client-side value of isMobile.
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-2">Initializing Layout...</p>
+        <p className="ml-2 text-foreground">Initializing App Layout...</p>
       </div>
     );
   }
 
+  // appLayoutMounted is true.
+  // The value of sidebarHookResult.isMobile is now the settled client-side value from SidebarProvider's context.
+  const { isMobile } = sidebarHookResult;
 
   return (
     <>
@@ -75,7 +70,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarHeader className="p-4 items-center">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-7 w-7 text-primary flex-shrink-0" />
-            {isMobile ? (
+            {isMobile ? ( // Use isMobile from context
               <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
                 {APP_NAME}
               </SheetTitle>
@@ -142,25 +137,27 @@ export function AppLayout({ children }: AppLayoutProps) {
       </Sidebar>
       <SidebarInset>
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
-          {sidebarHookResult && <SidebarTrigger />} {/* Ensure sidebarHookResult is available for SidebarTrigger */}
-          <Link href="/" className="text-lg font-bold text-primary font-headline">
-            {APP_NAME}
-          </Link>
-           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="p-1.5 rounded-md hover:bg-accent">
-                {resolvedTheme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
-                <span className="sr-only">Toggle theme</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTheme('light')}>Light</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}>Dark</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('system')}>System</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {isMobile && ( // Conditionally render mobile header based on context
+            <div className="md:hidden flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
+            <SidebarTrigger /> 
+            <Link href="/" className="text-lg font-bold text-primary font-headline">
+                {APP_NAME}
+            </Link>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                <button className="p-1.5 rounded-md hover:bg-accent">
+                    {resolvedTheme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+                    <span className="sr-only">Toggle theme</span>
+                </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTheme('light')}>Light</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')}>Dark</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')}>System</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            </div>
+        )}
         <main className="flex-grow container mx-auto px-4 pt-20 pb-8 md:pt-8 md:pb-8">
           {children}
         </main>
