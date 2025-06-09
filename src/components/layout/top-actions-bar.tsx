@@ -3,13 +3,12 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { PhoneForwarded, BarChartBig, Loader2 as ReportLoader, MapPin } from 'lucide-react'; // Renamed Loader2
+import { PhoneForwarded, BarChartBig, Loader2 as ReportLoader, MapPin } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { reportToControlRoom } from '@/lib/actions';
 import { useAirQuality } from '@/contexts/air-quality-context';
-import type { AirQualityReading } from '@/types';
-
+// import type { AirQualityReading } from '@/types'; // Not used directly
 
 export function TopActionsBar() {
   const router = useRouter();
@@ -102,7 +101,7 @@ export function TopActionsBar() {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start sm:justify-end gap-3 mb-6 p-4 border bg-card rounded-lg shadow">
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start sm:justify-end gap-3 mb-6 p-2 sm:p-4 border bg-card rounded-lg shadow">
       <Button onClick={handleReport} disabled={isReporting || isGettingLocation} className="w-full sm:w-auto">
         {isGettingLocation ? (
           <MapPin className="mr-2 h-4 w-4 animate-pulse" />
