@@ -76,8 +76,8 @@ export default function RealTimeDataPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {historicalData.slice(-5).reverse().map(reading => (
-                            <tr key={reading.timestamp.toISOString()} className="border-b">
+                        {historicalData.slice(-5).reverse().map((reading, index) => (
+                            <tr key={reading.timestamp.toISOString() + '-' + index} className="border-b">
                                 <td className="p-2">{format(reading.timestamp, "HH:mm:ss")}</td>
                                 <td className="p-2 text-right">{reading.co.toFixed(1)}</td>
                                 <td className="p-2 text-right">{reading.vocs.toFixed(1)}</td>
