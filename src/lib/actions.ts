@@ -63,7 +63,10 @@ export async function fetchWeeklyImpact(data: ForecastWeeklyInput): Promise<Fore
     return await forecastWeekly(data);
   } catch (error) {
     console.error("Error fetching weekly impact:", error);
-    return { summary: "Weekly impact analysis is currently unavailable. Please try refreshing." };
+    return {
+      summary: "Weekly impact analysis is currently unavailable. Please try refreshing.",
+      potentialSymptoms: ["Detailed symptom outlook is currently unavailable."]
+    };
   }
 }
 
