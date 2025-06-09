@@ -130,7 +130,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <main className="flex-grow container mx-auto px-4 py-8">
+        <main className="flex-grow container mx-auto px-4 pt-20 pb-8 md:py-8">
           {children}
         </main>
       </SidebarInset>
