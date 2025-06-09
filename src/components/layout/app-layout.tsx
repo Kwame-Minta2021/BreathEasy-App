@@ -36,6 +36,11 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   const { setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <SidebarProvider defaultOpen>
@@ -88,7 +93,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     className="w-full"
                     tooltip={{ children: "Change Theme", side: "right", align: "center" }}
                   >
-                    {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
+                    {mounted ? (resolvedTheme === 'dark' ? <Moon /> : <Sun />) : <Sun className="opacity-0"/>} {/* Render placeholder or nothing if not mounted */}
                     <span>Change Theme</span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
