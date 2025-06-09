@@ -5,7 +5,7 @@ import { useAirQuality } from '@/contexts/air-quality-context';
 import { HistoricalDataChart } from '@/components/dashboard/historical-data-chart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, LineChartIcon, ListChecks, ChevronDown } from 'lucide-react';
+import { BarChart as BarChartIconLucide, LineChartIcon, ListChecks, ChevronDown } from 'lucide-react'; // Renamed BarChart to avoid conflict
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Pollutant } from '@/types';
 import { POLLUTANTS_LIST, INITIAL_POLLUTANTS_FOR_CHART } from '@/lib/constants';
-import { ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 import { ChartTooltipContent, ChartContainer } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
 
@@ -97,7 +97,7 @@ export default function VisualizationsPage() {
       <Tabs defaultValue="line-chart">
         <TabsList className="grid w-full grid-cols-2 md:w-1/2">
           <TabsTrigger value="line-chart"><LineChartIcon className="mr-2"/> Trends (Line Chart)</TabsTrigger>
-          <TabsTrigger value="bar-chart"><BarChart className="mr-2"/> Current Levels (Bar Chart)</TabsTrigger>
+          <TabsTrigger value="bar-chart"><BarChartIconLucide className="mr-2"/> Current Levels (Bar Chart)</TabsTrigger>
         </TabsList>
         <TabsContent value="line-chart" className="mt-4">
           <Card className="shadow-lg">
@@ -151,36 +151,34 @@ export default function VisualizationsPage() {
                 </div>
             ) : barChartData.length > 0 ? (
               <ChartContainer config={barChartConfig} className="h-[350px] w-full">
-                <ResponsiveContainer>
-                  <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
-                    <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                    <XAxis type="number" stroke="hsl(var(--foreground))" domain={['auto', 'auto']}/>
-                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} stroke="hsl(var(--foreground))" width={80} interval={0} />
-                    <RechartsTooltip
-                      cursor={{ fill: 'hsl(var(--muted))' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <ChartTooltipContent
-                              className="w-[180px]"
-                              label={data.name}
-                              itemSorter={() => 0} // Keep original order
-                              formatter={(value, name, item, index, p) => (
-                                <div className="flex items-center gap-2">
-                                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p[index].payload.fill }} />
-                                  {typeof value === 'number' ? value.toFixed(1) : value} {p[index].payload.unit}
-                                </div>
-                              )}
-                            />
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Bar dataKey="value" radius={4} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                  <XAxis type="number" stroke="hsl(var(--foreground))" domain={['auto', 'auto']}/>
+                  <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} stroke="hsl(var(--foreground))" width={80} interval={0} />
+                  <RechartsTooltip
+                    cursor={{ fill: 'hsl(var(--muted))' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <ChartTooltipContent
+                            className="w-[180px]"
+                            label={data.name}
+                            itemSorter={() => 0} // Keep original order
+                            formatter={(value, name, item, index, p) => (
+                              <div className="flex items-center gap-2">
+                                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p[index].payload.fill }} />
+                                {typeof value === 'number' ? value.toFixed(1) : value} {p[index].payload.unit}
+                              </div>
+                            )}
+                          />
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="value" radius={4} />
+                </BarChart>
               </ChartContainer>
             ) : (
                  <div className="h-[350px] w-full flex items-center justify-center">
