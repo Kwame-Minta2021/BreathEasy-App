@@ -14,45 +14,16 @@ import {z} from 'genkit';
 const AirQualityChatbotInputSchema = z.object({
   question: z.string().describe('The user question about air quality.'),
 });
-
 export type AirQualityChatbotInput = z.infer<typeof AirQualityChatbotInputSchema>;
 
 const AirQualityChatbotOutputSchema = z.object({
   answer: z.string().describe('The chatbot answer to the user question.'),
 });
-
 export type AirQualityChatbotOutput = z.infer<typeof AirQualityChatbotOutputSchema>;
 
 export async function airQualityChatbot(input: AirQualityChatbotInput): Promise<AirQualityChatbotOutput> {
   return airQualityChatbotFlow(input);
 }
-
-const llmTool = ai.defineTool(
-  {
-    name: 'llmTool',
-    description: 'Responds to questions about air quality conditions, health impacts, and recommended actions based on the provided context.',
-    inputSchema: z.object({
-        question: z.string().describe('The user question to be answered.'),
-    }),
-    outputSchema: z.string()
-  },
-  async (input) => {
-    const {text} = await ai.generate({
-        prompt: input.question,
-    });
-    return text;
-  }
-);
-
-const airQualityChatbotPrompt = ai.definePrompt({
-  name: 'airQualityChatbotPrompt',
-  tools: [llmTool],
-  input: {schema: AirQualityChatbotInputSchema},
-  output: {schema: AirQualityChatbotOutputSchema},
-  prompt: `You are an AI chatbot specializing in air quality information.
-  Use the llmTool tool to answer user questions about air quality conditions, health impacts, and recommended actions.
-  Answer: {{llmTool question=question}}`
-});
 
 const airQualityChatbotFlow = ai.defineFlow(
   {
@@ -60,8 +31,18 @@ const airQualityChatbotFlow = ai.defineFlow(
     inputSchema: AirQualityChatbotInputSchema,
     outputSchema: AirQualityChatbotOutputSchema,
   },
-  async input => {
-    const {output} = await airQualityChatbotPrompt(input);
-    return output!;
+  async (input) => {
+    // Directly use ai.generate with the default model configured in ai/genkit.ts
+    // The prompt now directly incorporates the user's question.
+    const {text} = await ai.generate({
+      prompt: `You are an AI chatbot specializing in air quality information. Please answer the following question concisely and helpfully: "${input.question}"`,
+    });
+    
+    if (!text) {
+      // This case handles scenarios where the model might return an empty response.
+      return { answer: "I couldn't generate a response for that. Could you please try rephrasing your question?" };
+    }
+    
+    return { answer: text };
   }
 );
