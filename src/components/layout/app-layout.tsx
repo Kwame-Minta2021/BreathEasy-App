@@ -12,18 +12,21 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
-import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
-import { Leaf, MessageCircle, Settings as SettingsIcon } from 'lucide-react';
+import { Leaf, MessageCircle, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
 import { APP_NAME } from '@/lib/constants';
 import { Toaster } from "@/components/ui/toaster";
 import Link from 'next/link';
+import { useTheme } from "next-themes";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 
 interface AppLayoutProps {
@@ -32,6 +35,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
+  const { setTheme, resolvedTheme } = useTheme();
 
   return (
     <SidebarProvider defaultOpen>
@@ -50,7 +54,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarFooter className="p-2 flex flex-col">
           <SidebarMenu className="space-y-1">
             <SidebarMenuItem>
-                <SidebarMenuButton 
+                <SidebarMenuButton
                     onClick={() => setIsChatbotOpen(true)}
                     tooltip={{ children: "AI Assistant", side: "right", align: "center" }}
                     className="w-full"
@@ -59,9 +63,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                     <span>AI Assistant</span>
                 </SidebarMenuButton>
             </SidebarMenuItem>
-            
+
             <SidebarMenuItem>
-              {/* NotificationsSidebar component now returns a Collapsible triggered by SidebarMenuButton */}
               <NotificationsSidebar />
             </SidebarMenuItem>
 
@@ -77,13 +80,26 @@ export function AppLayout({ children }: AppLayoutProps) {
                   </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
+
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    className="w-full"
+                    tooltip={{ children: "Change Theme", side: "right", align: "center" }}
+                  >
+                    {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
+                    <span>Change Theme</span>
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="top" sideOffset={8}>
+                  <DropdownMenuItem onClick={() => setTheme('light')}>Light</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('dark')}>Dark</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme('system')}>System</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
           </SidebarMenu>
-          
-          <div className="mt-auto pt-2 border-t border-sidebar-border"> {/* Pushes ThemeToggle to bottom */}
-            <div className="flex justify-center group-data-[collapsible=icon]:justify-center">
-              <ThemeToggleButton />
-            </div>
-          </div>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
