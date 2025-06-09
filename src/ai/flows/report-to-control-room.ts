@@ -1,7 +1,8 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends an SMS notification to a control room using Twilio, optionally including current air quality readings.
+ * @fileOverview Formats and sends an SMS notification to a control room using Twilio,
+ * optionally including current air quality readings and a Google Maps link to the location.
  *
  * - reportToControlRoom - A function that formats a message and sends it via SMS.
  * - ReportToControlRoomInput - The input type for the function.
@@ -24,7 +25,8 @@ const AirQualityReadingSchemaForSms = z.object({
 const ReportToControlRoomInputSchema = z.object({
   message: z.string().describe("The core message or reason for the report."),
   currentReadings: AirQualityReadingSchemaForSms,
-  // location: z.optional(z.string()).describe("Optional location data.")
+  latitude: z.number().optional().describe("Optional latitude of the event."),
+  longitude: z.number().optional().describe("Optional longitude of the event.")
 });
 export type ReportToControlRoomInput = z.infer<typeof ReportToControlRoomInputSchema>;
 
@@ -39,10 +41,16 @@ export async function reportToControlRoom(input: ReportToControlRoomInput): Prom
   return reportToControlRoomFlow(input);
 }
 
+// Schema for the prompt that formats the SMS, including the constructed location link
+const ReportFormattingPromptInputSchema = ReportToControlRoomInputSchema.extend({
+  locationLink: z.string().optional().describe("An optional Google Maps link for the location of the report.")
+});
+
+
 // This prompt helps format the SMS.
 const reportFormattingPrompt = ai.definePrompt({
   name: 'reportFormattingPrompt',
-  input: {schema: ReportToControlRoomInputSchema},
+  input: {schema: ReportFormattingPromptInputSchema},
   output: {schema: z.object({ formattedSms: z.string() }) },
   prompt: `Format a concise SMS alert for a control room based on the following information:
 User Message: "{{message}}"
@@ -55,9 +63,14 @@ Current Air Quality Readings:
 - PM2.5: {{currentReadings.pm2_5}} µg/m³
 - PM10: {{currentReadings.pm10_0}} µg/m³
 {{/if}}
-The SMS should be clear, urgent, and include key details.
-Example SMS if readings are present: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Investigate."
-Example SMS if no readings: "URGENT: Air quality alert. User reports: '{{message}}'. Investigate immediately."
+{{#if locationLink}}
+Location: {{{locationLink}}}
+{{/if}}
+The SMS should be clear, urgent, and include key details. Ensure "Investigate" or similar call to action is present.
+Example SMS with readings & location: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Location: {{{locationLink}}}. Investigate."
+Example SMS no readings, with location: "URGENT: Report. User reports: '{{message}}'. Location: {{{locationLink}}}. Investigate."
+Example SMS with readings, no location: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Investigate."
+Example SMS only message, no location: "URGENT: Report. User reports: '{{message}}'. Investigate."
 Formatted SMS:`,
 });
 
@@ -68,8 +81,41 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async (input) => {
-    const {output: promptOutput} = await reportFormattingPrompt(input);
-    const smsContent = promptOutput?.formattedSms || `ALERT: ${input.message}${input.currentReadings ? ` - CO: ${input.currentReadings.co}ppm, PM2.5: ${input.currentReadings.pm2_5}µg/m³` : ''}`;
+    let locationLink: string | undefined = undefined;
+    const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
+
+    if (input.latitude && input.longitude) {
+      if (googleMapsApiKey && googleMapsApiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
+        locationLink = `https://www.google.com/maps/search/?api=1&query=${input.latitude},${input.longitude}&key=${googleMapsApiKey}`;
+      } else {
+        locationLink = `https://www.google.com/maps/search/?api=1&query=${input.latitude},${input.longitude}`;
+        if (!googleMapsApiKey || googleMapsApiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
+          console.warn("GOOGLE_MAPS_API_KEY is not set or is a placeholder. Maps link will not include API key.");
+        }
+      }
+    }
+    
+    const promptInputData: z.infer<typeof ReportFormattingPromptInputSchema> = {
+        ...input,
+        locationLink,
+    };
+
+    const {output: promptOutput} = await reportFormattingPrompt(promptInputData);
+    
+    let smsContent = promptOutput?.formattedSms;
+    if (!smsContent) {
+        console.warn("SMS content generation by prompt failed. Using fallback.");
+        let baseMessage = `URGENT: ${input.message}`;
+        if (input.currentReadings) {
+            baseMessage += `. Readings: CO ${input.currentReadings.co.toFixed(1)}ppm, VOCs ${input.currentReadings.vocs.toFixed(1)}ppb, CH4/LPG ${input.currentReadings.ch4Lpg.toFixed(1)}ppm, PM1.0 ${input.currentReadings.pm1_0.toFixed(1)}µg/m³, PM2.5 ${input.currentReadings.pm2_5.toFixed(1)}µg/m³, PM10 ${input.currentReadings.pm10_0.toFixed(1)}µg/m³`;
+        }
+        if (locationLink) {
+            baseMessage += `. Location: ${locationLink}`;
+        }
+        baseMessage += ". Investigate.";
+        smsContent = baseMessage;
+    }
+
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;

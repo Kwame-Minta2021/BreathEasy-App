@@ -14,7 +14,7 @@ import type { ForecastWeeklyInput, ForecastWeeklyOutput } from '@/ai/flows/forec
 import { forecastWeekly } from '@/ai/flows/forecast-weekly';
 import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risks';
 import { getHealthRisks } from '@/ai/flows/health-risks';
-import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room'; // Import the updated types
+import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
 import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
 
 
@@ -48,7 +48,6 @@ export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQuali
   }
 }
 
-// New actions for AI Analyzer and Reinforcement Analysis pages
 export async function fetch24hForecast(data: Forecast24hInput): Promise<Forecast24hOutput> {
   try {
     return await forecast24h(data);
@@ -79,19 +78,22 @@ export async function fetchHealthRisks(data: HealthRisksInput): Promise<HealthRi
   }
 }
 
+// Ensure ReportToControlRoomInput type is consistent with the flow's definition
 export async function reportToControlRoom(data: ReportToControlRoomInput): Promise<ReportToControlRoomOutput> {
     try {
         return await reportToControlRoomFlow(data);
     } catch (error) {
         console.error("Error reporting to control room:", error);
-        // Ensure the error response includes all fields for ReportToControlRoomOutput
         let smsContentOnError = `User Message: ${data.message}`;
         if (data.currentReadings) {
             smsContentOnError += ` | Readings: CO ${data.currentReadings.co}, PM2.5 ${data.currentReadings.pm2_5}`;
         }
+        if (data.latitude && data.longitude) {
+            smsContentOnError += ` | Location: Lat ${data.latitude.toFixed(4)}, Lon ${data.longitude.toFixed(4)}`;
+        }
         return { 
             confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`, 
-            smsContent: smsContentOnError,
+            smsContent: smsContentOnError, // Fallback SMS content
             messageSid: undefined
         };
     }
