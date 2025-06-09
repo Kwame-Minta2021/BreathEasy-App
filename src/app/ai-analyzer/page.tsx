@@ -6,29 +6,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, CheckCircle2, Brain, CalendarDays, TrendingUp, ShieldCheck, Lightbulb } from 'lucide-react';
 import { useAirQuality } from '@/contexts/air-quality-context';
-import { fetch24hForecast, fetchWeeklyImpact, fetchHealthRisks } from '@/lib/actions'; 
-import type { HistoricalAirQualityReading } from '@/types';
+import { fetch24hForecast, fetchWeeklyImpact, fetchHealthRisks, fetchActionRecommendations } from '@/lib/actions';
+import type { HistoricalAirQualityReading, AirQualityReading } from '@/types'; // Added AirQualityReading
 
 interface ForecastData {
-  prediction: string; 
-  confidence?: string; 
+  prediction: string;
+  confidence?: string;
 }
 interface ImpactData {
-  summary: string; 
+  summary: string;
   potentialSymptoms?: string[];
 }
 interface HealthRiskData {
-  riskLevel: string; 
+  riskLevel: string;
   symptoms: string[];
   advice: string[];
 }
+interface ActionRecsData {
+  recommendations: string[];
+}
+
 
 export default function AiAnalyzerPage() {
   const { currentData, historicalData, isLoadingReadings } = useAirQuality();
   const [forecast24h, setForecast24h] = useState<ForecastData | null>(null);
   const [weeklyImpact, setWeeklyImpact] = useState<ImpactData | null>(null);
   const [healthRisks, setHealthRisks] = useState<HealthRiskData | null>(null);
-  const [actionRecs, setActionRecs] = useState<string[] | null>(null); 
+  const [actionRecs, setActionRecs] = useState<ActionRecsData | null>(null);
 
   const [isLoadingForecast, setIsLoadingForecast] = useState(false);
   const [isLoadingWeekly, setIsLoadingWeekly] = useState(false);
@@ -42,30 +46,41 @@ export default function AiAnalyzerPage() {
     setIsLoadingForecast(true);
     setIsLoadingWeekly(true);
     setIsLoadingHealth(true);
-    setIsLoadingRecs(true); 
+    setIsLoadingRecs(true);
 
-    const now = new Date();
-    const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
-    const recentHistoricalData = historicalData.filter(
-      (reading: HistoricalAirQualityReading) => new Date(reading.timestamp) >= tenMinutesAgo
-    );
+    // Ensure currentData is not null before trying to use it.
+    // Use a default or placeholder if currentData is null but historicalData exists.
+    const dataForAi: AirQualityReading = currentData ?? (historicalData.length > 0 ? historicalData[historicalData.length -1] : {
+      co: 0, vocs: 0, ch4Lpg: 0, pm1_0: 0, pm2_5: 0, pm10_0: 0 // Default empty reading
+    });
+
 
     try {
       const [forecastRes, weeklyRes, healthRes, recsRes] = await Promise.all([
-        fetch24hForecast({ currentReadings: currentData }),
-        fetchWeeklyImpact({ historicalData: recentHistoricalData }), 
-        fetchHealthRisks({ currentReadings: currentData }),
-        // Placeholder for recommendations, can use existing or new flow
-        Promise.resolve({ recommendations: ["Ventilate your space regularly.", "Consider using an air purifier during high pollution days."] }) 
+        fetch24hForecast({ currentReadings: dataForAi }),
+        fetchWeeklyImpact({ historicalData }), // Pass full historicalData for weekly analysis
+        fetchHealthRisks({ currentReadings: dataForAi, forecastData: null }), // Pass current or latest
+        fetchActionRecommendations({ // Ensure ActionRecommendationsInput fields are met
+            co: dataForAi.co,
+            vocs: dataForAi.vocs,
+            ch4Lpg: dataForAi.ch4Lpg,
+            pm1_0: dataForAi.pm1_0,
+            pm2_5: dataForAi.pm2_5,
+            pm10: dataForAi.pm10_0, // Note: flow expects pm10, type expects pm10_0. Align if necessary.
+        })
       ]);
       setForecast24h(forecastRes);
       setWeeklyImpact(weeklyRes);
       setHealthRisks(healthRes);
-      setActionRecs(recsRes.recommendations);
+      setActionRecs(recsRes);
 
     } catch (error) {
       console.error("Error fetching AI analyses:", error);
       // Set error states for individual sections if needed
+      if (!forecast24h) setForecast24h({ prediction: "Could not load forecast.", confidence: "Low"});
+      if (!weeklyImpact) setWeeklyImpact({ summary: "Could not load weekly impact."});
+      if (!healthRisks) setHealthRisks({ riskLevel: "Unknown", symptoms: [], advice: ["Could not load health risks."]});
+      if (!actionRecs) setActionRecs({ recommendations: ["Could not load recommendations."]});
     } finally {
       setIsLoadingForecast(false);
       setIsLoadingWeekly(false);
@@ -73,7 +88,7 @@ export default function AiAnalyzerPage() {
       setIsLoadingRecs(false);
     }
   };
-  
+
   useEffect(() => {
     if (currentData || historicalData.length > 0) {
         loadAiAnalyses();
@@ -87,11 +102,11 @@ export default function AiAnalyzerPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="font-headline text-2xl flex items-center gap-2"><Brain className="text-primary"/>AI Powered Air Quality Analyzer</CardTitle>
-          <CardDescription>Insights and forecasts powered by our Reinforcement Learning model.</CardDescription>
+          <CardDescription>Insights and forecasts based on current and historical air quality data.</CardDescription>
         </CardHeader>
         <CardContent>
-           <Button onClick={loadAiAnalyses} disabled={isLoadingReadings || (!currentData && historicalData.length === 0) || isLoadingForecast || isLoadingWeekly || isLoadingHealth}>
-            { (isLoadingForecast || isLoadingWeekly || isLoadingHealth) ? (
+           <Button onClick={loadAiAnalyses} disabled={isLoadingReadings || (!currentData && historicalData.length === 0) || isLoadingForecast || isLoadingWeekly || isLoadingHealth || isLoadingRecs}>
+            { (isLoadingForecast || isLoadingWeekly || isLoadingHealth || isLoadingRecs) ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
             Refresh AI Analysis
@@ -106,7 +121,7 @@ export default function AiAnalyzerPage() {
             <CardDescription>Predicted gas concentrations and general air quality for the next 24 hours.</CardDescription>
           </CardHeader>
           <CardContent className="min-h-[100px]">
-            {isLoadingForecast ? <Loader2 className="animate-spin" /> : 
+            {isLoadingForecast ? <Loader2 className="animate-spin" /> :
              forecast24h ? <p>{forecast24h.prediction} {forecast24h.confidence && `(Confidence: ${forecast24h.confidence})`}</p> : <p className="text-muted-foreground">No forecast data available.</p>
             }
           </CardContent>
@@ -114,12 +129,20 @@ export default function AiAnalyzerPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><TrendingUp className="text-primary"/> Weekly Impact Analysis</CardTitle>
-            <CardDescription>Trends and potential health outcomes for the coming week, based on the last 10 minutes of data.</CardDescription>
+            <CardDescription>Expected air quality trends and potential health outcomes for the coming week, based on historical data.</CardDescription>
           </CardHeader>
           <CardContent className="min-h-[100px]">
-            {isLoadingWeekly ? <Loader2 className="animate-spin" /> : 
+            {isLoadingWeekly ? <Loader2 className="animate-spin" /> :
              weeklyImpact ? <p>{weeklyImpact.summary}</p> : <p className="text-muted-foreground">No weekly impact data available.</p>
             }
+             {weeklyImpact?.potentialSymptoms && weeklyImpact.potentialSymptoms.length > 0 && (
+              <div className="mt-2">
+                <h4 className="text-sm font-semibold">Potential Symptoms:</h4>
+                <ul className="list-disc list-inside text-xs text-muted-foreground">
+                  {weeklyImpact.potentialSymptoms.map((symptom, i) => <li key={i}>{symptom}</li>)}
+                </ul>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -153,16 +176,16 @@ export default function AiAnalyzerPage() {
           ) : <p className="text-muted-foreground">No health risk data available.</p>}
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-primary"/> Best Practices & Recommendations</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Lightbulb className="text-primary"/> Action Recommendations</CardTitle>
           <CardDescription>Actionable advice for improving air quality and mitigating health risks.</CardDescription>
         </CardHeader>
         <CardContent className="min-h-[100px]">
-           {isLoadingRecs ? <Loader2 className="animate-spin" /> : actionRecs && actionRecs.length > 0 ? (
+           {isLoadingRecs ? <Loader2 className="animate-spin" /> : actionRecs?.recommendations && actionRecs.recommendations.length > 0 ? (
                 <ul className="space-y-2">
-                  {actionRecs.map((rec, index) => (
+                  {actionRecs.recommendations.map((rec, index) => (
                     <li key={index} className="flex items-start text-sm">
                       <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5 text-accent flex-shrink-0" />
                       <span>{rec}</span>
@@ -177,3 +200,4 @@ export default function AiAnalyzerPage() {
     </div>
   );
 }
+
