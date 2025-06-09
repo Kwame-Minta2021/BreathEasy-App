@@ -9,7 +9,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarGroup,
-  SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 
@@ -28,7 +27,6 @@ export function SidebarNav() {
   return (
     <SidebarMenu>
       <SidebarGroup>
-        <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
         {mainNavItems.map((item) => (
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
