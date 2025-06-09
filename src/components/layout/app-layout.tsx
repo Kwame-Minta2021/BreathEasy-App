@@ -12,7 +12,8 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarTrigger, // Added import
+  SidebarTrigger,
+  useSidebar, // Ensure useSidebar is imported
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
@@ -28,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SheetTitle } from '@/components/ui/sheet'; // Ensure SheetTitle is imported
 
 
 interface AppLayoutProps {
@@ -38,6 +40,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
+  const { isMobile } = useSidebar(); // Get isMobile from useSidebar context
 
   React.useEffect(() => {
     setMounted(true);
@@ -49,9 +52,23 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarHeader className="p-4 items-center">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-7 w-7 text-primary flex-shrink-0" />
-            <h1 className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
-              {APP_NAME}
-            </h1>
+            {/* Conditional rendering for the title based on mounted and isMobile state */}
+            {mounted ? (
+              isMobile ? (
+                <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
+                  {APP_NAME}
+                </SheetTitle>
+              ) : (
+                <div className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
+                  {APP_NAME}
+                </div>
+              )
+            ) : (
+              // Fallback for SSR and initial client render (matches desktop version to prevent layout shift and SSR errors)
+              <div className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
+                {APP_NAME}
+              </div>
+            )}
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -115,7 +132,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Link href="/" className="text-lg font-bold text-primary font-headline">
             {APP_NAME}
           </Link>
-          {/* You can add other mobile-specific header icons here if needed, e.g., a theme toggle */}
            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1.5 rounded-md hover:bg-accent">
@@ -130,7 +146,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <main className="flex-grow container mx-auto px-4 pt-20 pb-8 md:py-8">
+        <main className="flex-grow container mx-auto px-4 pt-20 pb-8 md:pt-8 md:pb-8">
           {children}
         </main>
       </SidebarInset>
