@@ -93,7 +93,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     className="w-full"
                     tooltip={{ children: "Change Theme", side: "right", align: "center" }}
                   >
-                    {mounted ? (resolvedTheme === 'dark' ? <Moon /> : <Sun />) : <Sun className="opacity-0"/>} {/* Render placeholder or nothing if not mounted */}
+                    {mounted ? (resolvedTheme === 'dark' ? <Moon /> : <Sun />) : <Sun className="opacity-0"/>}
                     <span>Change Theme</span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
@@ -112,7 +112,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
         <footer className="py-6 text-center text-sm text-muted-foreground border-t">
-            © {new Date().getFullYear()} {APP_NAME}. All rights reserved.
+            {APP_NAME}
         </footer>
       </SidebarInset>
       <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
