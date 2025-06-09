@@ -13,8 +13,8 @@ import { database } from '@/lib/firebase';
 import { ref, onValue, off, set as firebaseSet, DataSnapshot } from 'firebase/database';
 
 const MAX_HISTORICAL_READINGS = 500;
-const SENSOR_DATA_PATH = 'sensorData';
-const USER_THRESHOLDS_PATH = 'user_settings/thresholds';
+const SENSOR_DATA_PATH = 'sensorData'; // Path for sensor data
+const USER_THRESHOLDS_PATH = 'user_settings/thresholds'; // Path for user thresholds
 
 interface FirebaseSensorReading {
   CH4_LPG_ppm?: number;
@@ -22,7 +22,7 @@ interface FirebaseSensorReading {
   PM10_ug_m3?: number;
   PM1_0_ug_m3?: number;
   PM2_5_ug_m3?: number;
-  VOCs_ppm?: number;
+  VOCs_ppm?: number; // Firebase sends VOCs in ppm
   [key: string]: any;
 }
 
@@ -49,7 +49,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const [historicalData, setHistoricalData] = useState<HistoricalAirQualityReading[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [actionRecommendations, setActionRecommendations] = useState<string[] | null>(null);
-  const [isLoadingReadings, setIsLoadingReadings] = useState(true);
+  const [isLoadingReadings, setIsLoadingReadings] = useState(true); // True until first data/error from Firebase
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [thresholds, setThresholds] = useState<UserThresholds>({});
@@ -60,18 +60,21 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   });
   const [lastProcessedForAI, setLastProcessedForAI] = useState<AirQualityReading | null>(null);
 
-  const mapFirebaseToAppReading = (fbReading: FirebaseSensorReading): AirQualityReading => {
+
+  const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
     return {
       co: fbReading.CO_ppm ?? 0,
-      vocs: (fbReading.VOCs_ppm ?? 0) * 1000,
+      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert ppm to ppb for app consistency
       ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
       pm10_0: fbReading.PM10_ug_m3 ?? 0,
     };
-  };
+  }, []);
 
   const updateAiData = useCallback(async (data: AirQualityReading) => {
+    if (isLoadingAnalysis || isLoadingRecommendations) return; // Avoid parallel calls
+
     setIsLoadingAnalysis(true);
     setIsLoadingRecommendations(true);
     const analysisInput: AirQualityAnalysisInput = {
@@ -97,6 +100,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       ]);
       setAiAnalysis(analysisResult.summary);
       setActionRecommendations(recommendationsResult.recommendations);
+      setLastProcessedForAI(data);
     } catch (error) {
       console.error("Error fetching AI data:", error);
       setAiAnalysis("Failed to load AI analysis.");
@@ -105,7 +109,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       setIsLoadingAnalysis(false);
       setIsLoadingRecommendations(false);
     }
-  }, []);
+  }, [isLoadingAnalysis, isLoadingRecommendations]);
 
   const checkForNotifications = useCallback((newData: AirQualityReading) => {
     const newNotifications: AppNotification[] = [];
@@ -114,7 +118,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       const currentValue = newData[pollutant.id];
       if (thresholdValue !== undefined && thresholdValue !== Number.MAX_SAFE_INTEGER && currentValue > thresholdValue) {
         const existingNotification = notifications.find(
-          n => n.pollutantId === pollutant.id && (new Date().getTime() - n.timestamp.getTime()) < 5 * 60 * 1000
+          n => n.pollutantId === pollutant.id && (new Date().getTime() - n.timestamp.getTime()) < 5 * 60 * 1000 // 5 min cooldown
         );
         if (!existingNotification) {
           newNotifications.push({
@@ -124,120 +128,144 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
             value: currentValue,
             threshold: thresholdValue,
             timestamp: new Date(),
-            message: `${pollutant.name} level (${currentValue.toFixed(1)} ${pollutant.unit}) exceeded threshold (${thresholdValue} ${pollutant.unit}).`
+            message: `${pollutant.name} level (${currentValue.toFixed(1)} ${pollutant.unit}) exceeded threshold (${thresholdValue.toFixed(1)} ${pollutant.unit}).`
           });
         }
       }
     });
     if (newNotifications.length > 0) {
-      setNotifications(prev => [...newNotifications, ...prev].slice(0, 10));
+      setNotifications(prev => [...newNotifications, ...prev].slice(0, 10)); // Keep last 10
     }
   }, [thresholds, notifications]);
 
+  // Effect for fetching sensor data from Firebase
   useEffect(() => {
-    setIsLoadingReadings(true); // Start loading when we attempt to attach listener
     const sensorDataRef = ref(database, SENSOR_DATA_PATH);
-    let isFirstSuccessfulRead = true;
 
-    const handleNewData = (snapshot: DataSnapshot) => {
-      // Once we get any data (or null), initial loading phase is over.
+    const handleData = (snapshot: DataSnapshot) => {
+      // Uncomment for debugging:
+      // console.log(`[${new Date().toLocaleTimeString()}] Firebase snapshot for ${SENSOR_DATA_PATH}:`, snapshot.val());
+      
       if (isLoadingReadings) {
-        setIsLoadingReadings(false);
+        setIsLoadingReadings(false); // Initial load is complete (data or null received)
       }
 
       const fbData = snapshot.val() as FirebaseSensorReading | null;
+      // Uncomment for debugging:
+      // console.log(`[${new Date().toLocaleTimeString()}] Parsed fbData:`, fbData);
 
       if (fbData) {
         const appData = mapFirebaseToAppReading(fbData);
+        // Uncomment for debugging:
+        // console.log(`[${new Date().toLocaleTimeString()}] Mapped appData:`, appData);
+
         setCurrentData(appData);
         setHistoricalData(prevHist => {
           const newHistEntry: HistoricalAirQualityReading = { ...appData, timestamp: new Date() };
           const updatedHist = [ ...prevHist, newHistEntry];
           return updatedHist.slice(-MAX_HISTORICAL_READINGS);
         });
+        
         checkForNotifications(appData);
 
         let shouldUpdateAI = false;
-        if (isFirstSuccessfulRead) {
-          shouldUpdateAI = true;
-          isFirstSuccessfulRead = false;
-        } else if (lastProcessedForAI) {
-          const significantChange = Object.keys(appData).some(key => {
-              const currentVal = appData[key as keyof AirQualityReading];
-              const previousVal = lastProcessedForAI[key as keyof AirQualityReading];
-              if (typeof currentVal === 'number' && typeof previousVal === 'number') {
-                  if (previousVal === 0 && currentVal !== 0) return true;
-                  if (previousVal === 0 && currentVal === 0) return false;
-                  return Math.abs(currentVal - previousVal) / previousVal > 0.1; // 10% change
-              }
-              return false;
-          });
-          if (significantChange) {
+        if (!lastProcessedForAI) { // First time getting data or after data was null
             shouldUpdateAI = true;
-          }
-        } else { // No lastProcessedForAI (means previous data was null), but this one is valid
-             shouldUpdateAI = true;
+        } else {
+            const significantChange = Object.keys(appData).some(key => {
+                const currentVal = appData[key as keyof AirQualityReading];
+                const previousVal = lastProcessedForAI[key as keyof AirQualityReading];
+                if (typeof currentVal === 'number' && typeof previousVal === 'number') {
+                    if (previousVal === 0 && currentVal !== 0) return true;
+                    if (previousVal === 0 && currentVal === 0) return false;
+                    return Math.abs(currentVal - previousVal) / previousVal > 0.1; // 10% change
+                }
+                return false;
+            });
+            if (significantChange) {
+                shouldUpdateAI = true;
+            }
         }
-
+        
         if (shouldUpdateAI) {
           updateAiData(appData);
-          setLastProcessedForAI(appData);
         }
       } else {
-        // fbData is null, meaning no data at the sensor path
-        setCurrentData(null); // Clear current data
-        setLastProcessedForAI(null); // Reset AI processing tracker
-        // Historical data is not cleared, it just stops growing
+        // Uncomment for debugging:
+        // console.log(`[${new Date().toLocaleTimeString()}] fbData is null for ${SENSOR_DATA_PATH}. Setting currentData to null.`);
+        setCurrentData(null);
+        setLastProcessedForAI(null); // Reset so AI updates on next valid data
       }
     };
 
-    onValue(sensorDataRef, handleNewData, (error) => {
+    const handleError = (error: Error) => {
       console.error(`Firebase ${SENSOR_DATA_PATH} data read failed:`, error);
-      setIsLoadingReadings(false); // Stop loading on error
+      if (isLoadingReadings) {
+        setIsLoadingReadings(false); // Initial load attempt failed
+      }
       setCurrentData(null);
       setLastProcessedForAI(null);
-    });
+    };
 
+    onValue(sensorDataRef, handleData, handleError);
+
+    return () => {
+      off(sensorDataRef, 'value', handleData);
+    };
+  }, [isLoadingReadings, mapFirebaseToAppReading, checkForNotifications, updateAiData, lastProcessedForAI]); // Dependencies updated
+
+  // Effect for fetching user thresholds from Firebase
+  useEffect(() => {
     const thresholdsRef = ref(database, USER_THRESHOLDS_PATH);
-    onValue(thresholdsRef, (snapshot) => {
+    const handleThresholdData = (snapshot: DataSnapshot) => {
         const savedThresholds = snapshot.val() as UserThresholds | null;
+        // Uncomment for debugging:
+        // console.log("Firebase thresholds received:", savedThresholds);
         if (savedThresholds) {
             setThresholds(savedThresholds);
         } else {
             const defaultThresholdsInit: UserThresholds = {};
             POLLUTANTS_LIST.forEach(p => {
-                defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER;
+                defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER; // Default to no alert
             });
             setThresholds(defaultThresholdsInit);
         }
-    }, (error) => {
-        console.error("Firebase thresholds read failed:", error);
-    });
+    };
+    const handleThresholdError = (error: Error) => {
+        console.error(`Firebase ${USER_THRESHOLDS_PATH} data read failed:`, error);
+        // Initialize with defaults if read fails
+        const defaultThresholdsInit: UserThresholds = {};
+        POLLUTANTS_LIST.forEach(p => {
+            defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER;
+        });
+        setThresholds(defaultThresholdsInit);
+    };
+
+    onValue(thresholdsRef, handleThresholdData, handleThresholdError);
 
     return () => {
-      off(sensorDataRef, 'value', handleNewData);
-      off(thresholdsRef, 'value');
+      off(thresholdsRef, 'value', handleThresholdData);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkForNotifications, updateAiData]); // database and SENSOR_DATA_PATH are constant-like
+  }, []); // Runs once on mount
 
+  // Effect for periodic AI update
   useEffect(() => {
     const intervalId = setInterval(() => {
-      if (currentData && !isLoadingAnalysis) { // Only call if not already loading and currentData exists
+      if (currentData && !isLoadingAnalysis && !isLoadingRecommendations) {
         // console.log("Periodic AI update triggered by interval.");
         updateAiData(currentData);
-        setLastProcessedForAI(currentData); // Update last processed for AI to prevent immediate re-trigger by significance check
       }
     }, POLLING_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
-  }, [currentData, updateAiData, isLoadingAnalysis]);
+  }, [currentData, updateAiData, isLoadingAnalysis, isLoadingRecommendations]);
 
 
   const updateThreshold = (pollutantId: keyof AirQualityReading, value: number) => {
     const newThresholds = { ...thresholds, [pollutantId]: value === null || isNaN(value) ? Number.MAX_SAFE_INTEGER : value };
     setThresholds(newThresholds);
     firebaseSet(ref(database, USER_THRESHOLDS_PATH), newThresholds)
+      .then(() => { /* console.log("Thresholds saved to Firebase.") */ })
       .catch(error => console.error("Error saving thresholds to Firebase:", error));
   };
 
@@ -273,4 +301,3 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
-
