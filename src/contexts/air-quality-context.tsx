@@ -13,7 +13,7 @@ import { database } from '@/lib/firebase';
 import { ref, onValue, off, set as firebaseSet } from 'firebase/database';
 
 const MAX_HISTORICAL_READINGS = 500;
-const SENSOR_DATA_PATH = 'sensor_readings'; // Assumed path for sensor data
+const SENSOR_DATA_PATH = 'sensorData'; // Updated path to match Firebase rules
 const USER_THRESHOLDS_PATH = 'user_settings/thresholds'; // Path for user thresholds
 
 // Firebase data structure for sensor readings (raw from DB)
@@ -23,7 +23,7 @@ interface FirebaseSensorReading {
   PM10_ug_m3?: number;
   PM1_0_ug_m3?: number;
   PM2_5_ug_m3?: number;
-  VOCs_ppm?: number;
+  VOCs_ppm?: number; // Note: Firebase stores VOCs in ppm
   // Add any other fields that might come from Firebase, even if not used directly
   [key: string]: any; 
 }
@@ -65,7 +65,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const mapFirebaseToAppReading = (fbReading: FirebaseSensorReading): AirQualityReading => {
     return {
       co: fbReading.CO_ppm ?? 0,
-      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert ppm to ppb
+      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert ppm from Firebase to ppb for app use
       ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
@@ -151,19 +151,20 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
           return updatedHist.slice(-MAX_HISTORICAL_READINGS);
         });
         
-        if (isLoadingReadings) { // Only call AI data on first load or significant changes
+        if (isLoadingReadings) { 
             updateAiData(appData);
-        } else { // For subsequent updates, perhaps a less frequent AI update or based on thresholds
-            // Check if any value significantly changed to re-trigger AI update
+        } else { 
             const significantChange = Object.keys(appData).some(key => {
                 const currentVal = appData[key as keyof AirQualityReading];
                 const previousVal = currentData ? currentData[key as keyof AirQualityReading] : null;
                 if (typeof currentVal === 'number' && typeof previousVal === 'number') {
+                    if (previousVal === 0 && currentVal !== 0) return true; // Change from zero
+                    if (previousVal === 0 && currentVal === 0) return false; // No change from zero
                     return Math.abs(currentVal - previousVal) / previousVal > 0.1; // 10% change
                 }
                 return false;
             });
-            if(significantChange || !aiAnalysis) { // Or if AI analysis is null
+            if(significantChange || !aiAnalysis) { 
                 updateAiData(appData);
             }
         }
@@ -171,11 +172,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         checkForNotifications(appData);
         setIsLoadingReadings(false);
       } else {
-        // Handle case where data is null (e.g. path doesn't exist or cleared)
         setIsLoadingReadings(false); 
-        // Optionally set currentData to null or default values
-        // setCurrentData(null); 
-        // setHistoricalData([]);
       }
     };
 
@@ -184,14 +181,12 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       setIsLoadingReadings(false);
     });
 
-    // Listener for user thresholds
     const thresholdsRef = ref(database, USER_THRESHOLDS_PATH);
     onValue(thresholdsRef, (snapshot) => {
         const savedThresholds = snapshot.val() as UserThresholds | null;
         if (savedThresholds) {
             setThresholds(savedThresholds);
         } else {
-            // Initialize with default "unset" thresholds if nothing in DB
             const defaultThresholds: UserThresholds = {};
             POLLUTANTS_LIST.forEach(p => {
                 defaultThresholds[p.id] = Number.MAX_SAFE_INTEGER;
@@ -200,7 +195,6 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         }
     }, (error) => {
         console.error("Firebase thresholds read failed:", error);
-        // Keep local/default thresholds on error
     });
 
 
@@ -209,7 +203,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       off(thresholdsRef, 'value');
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateAiData, checkForNotifications, currentData, aiAnalysis]); // currentData & aiAnalysis added to dependencies for AI update logic
+  }, [updateAiData, checkForNotifications, currentData, aiAnalysis]);
 
 
   const updateThreshold = (pollutantId: keyof AirQualityReading, value: number) => {
@@ -251,3 +245,6 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
+
+
+    
