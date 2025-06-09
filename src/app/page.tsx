@@ -5,14 +5,12 @@ import React from 'react';
 import { CurrentReadingsGrid } from '@/components/dashboard/current-readings-grid';
 import { AiInsightsSection } from '@/components/dashboard/ai-insights-section';
 import { HistoricalDataChart } from '@/components/dashboard/historical-data-chart';
-import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
-import { Button } from '@/components/ui/button';
 import { useAirQuality } from '@/contexts/air-quality-context';
-import { MessageCircle, Loader2, CalendarRange } from 'lucide-react';
+import { Loader2, CalendarRange } from 'lucide-react';
 import { INITIAL_POLLUTANTS_FOR_CHART } from '@/lib/constants';
 import { TopActionsBar } from '@/components/layout/top-actions-bar';
-import { DateRangePicker } from '@/components/ui/date-range-picker'; // Import the new component
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DateRangePicker } from '@/components/ui/date-range-picker'; 
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export default function DashboardPage() {
   const {
@@ -23,21 +21,15 @@ export default function DashboardPage() {
     isLoadingReadings,
     isLoadingAnalysis,
     isLoadingRecommendations,
-    dateRange, // Get dateRange from context
-    setDateRange, // Get setDateRange from context
+    dateRange, 
+    setDateRange, 
   } = useAirQuality();
   
-  const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
-
-  // Filter historical data based on the selected date range
   const filteredHistoricalData = React.useMemo(() => {
-    if (!dateRange?.from) return historicalData; // Show all if no start date
+    if (!dateRange?.from) return historicalData; 
     
     const fromDate = dateRange.from;
-    // If only 'from' is selected, 'to' defaults to 'from' for a single day, or set to a far future if range is open-ended
-    // For this chart, let's assume 'to' should be set if 'from' is.
-    // Or, if 'to' is undefined, consider it as up to the latest available data.
-    const toDate = dateRange.to ? new Date(dateRange.to.setHours(23, 59, 59, 999)) : new Date(); // up to end of day or now
+    const toDate = dateRange.to ? new Date(dateRange.to.setHours(23, 59, 59, 999)) : new Date();
 
     return historicalData.filter(reading => {
       const readingDate = new Date(reading.timestamp);
@@ -67,7 +59,7 @@ export default function DashboardPage() {
                      <CalendarRange className="h-5 w-5 text-primary" />
                      Historical Trends
                   </CardTitle>
-                   <p className="text-sm text-muted-foreground">Select a date range to view pollutant trends.</p>
+                   <CardDescription className="text-sm text-muted-foreground">Select a date range to view pollutant trends.</CardDescription>
                 </div>
                 <DateRangePicker date={dateRange} onDateChange={setDateRange} className="mt-2 sm:mt-0"/>
               </div>
@@ -89,16 +81,7 @@ export default function DashboardPage() {
           />
         </>
       )}
-      <Button
-        variant="default"
-        size="lg"
-        className="fixed bottom-6 right-6 rounded-full shadow-xl p-4 h-16 w-16 z-50"
-        onClick={() => setIsChatbotOpen(true)}
-        aria-label="Open AI Chatbot"
-      >
-        <MessageCircle className="h-8 w-8" />
-      </Button>
-      <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
+      {/* Chatbot button removed from here, now in AppLayout sidebar footer */}
     </div>
   );
 }

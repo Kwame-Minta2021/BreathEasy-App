@@ -19,7 +19,7 @@ const mainNavItems = [
   { href: '/visualizations', label: 'Visualizations', icon: BarChart3 },
   { href: '/ai-analyzer', label: 'AI Analyzer', icon: Brain },
   { href: '/reinforcement-analysis', label: 'RL Analysis', icon: ShieldAlert },
-  { href: '/settings', label: 'Settings', icon: Settings }, // Added Settings
+  // { href: '/settings', label: 'Settings', icon: Settings }, // Settings link removed from main nav
 ];
 
 
@@ -46,7 +46,21 @@ export function SidebarNav() {
         ))}
       </SidebarGroup>
       <Separator className="my-2" />
+       <SidebarGroup>
+        <SidebarGroupLabel>Support &amp; Config</SidebarGroupLabel>
+         <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/settings'}
+              tooltip={{ children: "Settings", side: "right", align: "center" }}
+            >
+              <Link href="/settings">
+                <Settings />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+       </SidebarGroup>
     </SidebarMenu>
   );
 }
-

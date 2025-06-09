@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState } from 'react';
-import { Bell, X, Settings, Save } from 'lucide-react';
+import React from 'react';
+import { Bell, X, Settings, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Collapsible,
@@ -10,45 +10,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAirQuality } from '@/contexts/air-quality-context';
-import type { Pollutant, UserThresholds } from '@/types';
-import { POLLUTANTS_LIST } from '@/lib/constants';
 import { format } from 'date-fns';
 import { useSidebar } from '@/components/ui/sidebar';
+import Link from 'next/link';
+import { Separator } from '../ui/separator';
 
 export function NotificationsSidebar() {
-  const { notifications, thresholds, updateThreshold, clearNotification } = useAirQuality();
-  const [isOpen, setIsOpen] = useState(false);
-  const [localThresholds, setLocalThresholds] = useState<Partial<UserThresholds>>(thresholds);
+  const { notifications, clearNotification } = useAirQuality();
+  const [isOpen, setIsOpen] = React.useState(false);
   const { state: sidebarState } = useSidebar();
-
-  React.useEffect(() => {
-    setLocalThresholds(thresholds);
-  }, [thresholds]);
-
-  const handleThresholdChange = (pollutantId: keyof UserThresholds, value: string) => {
-    const numValue = parseFloat(value);
-    setLocalThresholds(prev => ({
-      ...prev,
-      [pollutantId]: isNaN(numValue) ? undefined : numValue,
-    }));
-  };
-
-  const handleSaveThresholds = () => {
-    POLLUTANTS_LIST.forEach(p => {
-      const value = localThresholds[p.id];
-      if (value !== undefined) {
-        updateThreshold(p.id, value);
-      } else {
-         // If user clears input, effectively remove threshold by setting to a high value or specific handling
-        updateThreshold(p.id, Number.MAX_SAFE_INTEGER); // Or handle undefined specifically in context
-      }
-    });
-    // TODO: Add toast notification for saved settings
-  };
 
   if (sidebarState === "collapsed") {
     return (
@@ -67,7 +39,6 @@ export function NotificationsSidebar() {
         </CollapsibleTrigger>
         <CollapsibleContent className="absolute bottom-12 left-full ml-2 z-50">
           <Card className="w-80 shadow-xl">
-            {/* Content for collapsed sidebar is tricky, usually a popover is better */}
             <CardHeader>
               <CardTitle className="text-base">Notifications ({notifications.length})</CardTitle>
             </CardHeader>
@@ -98,35 +69,8 @@ export function NotificationsSidebar() {
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-2">
-        <Card>
-          <CardHeader className="p-3">
-            <CardTitle className="text-sm">Alert Settings</CardTitle>
-            <CardDescription className="text-xs">Set thresholds for pollutants.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-3 space-y-2">
-            <ScrollArea className="h-32">
-              {POLLUTANTS_LIST.map(pollutant => (
-                <div key={pollutant.id} className="flex items-center gap-2 mb-1">
-                  <Label htmlFor={`threshold-${pollutant.id}`} className="text-xs w-1/3 truncate">{pollutant.name}</Label>
-                  <Input
-                    id={`threshold-${pollutant.id}`}
-                    type="number"
-                    step="any"
-                    value={localThresholds[pollutant.id]?.toString() ?? ''}
-                    onChange={(e) => handleThresholdChange(pollutant.id, e.target.value)}
-                    placeholder={pollutant.unit}
-                    className="h-7 text-xs flex-1"
-                  />
-                </div>
-              ))}
-            </ScrollArea>
-            <Button size="sm" onClick={handleSaveThresholds} className="w-full text-xs">
-              <Save className="mr-1 h-3 w-3" /> Save Thresholds
-            </Button>
-          </CardContent>
-        </Card>
         {notifications.length > 0 && (
-          <Card className="mt-2">
+          <Card>
             <CardHeader className="p-3">
                 <CardTitle className="text-sm">Active Alerts</CardTitle>
             </CardHeader>
@@ -150,6 +94,19 @@ export function NotificationsSidebar() {
             </CardContent>
           </Card>
         )}
+        <Card className="mt-2">
+            <CardHeader className="p-3">
+                <CardTitle className="text-sm">Alert Settings</CardTitle>
+                <CardDescription className="text-xs">Configure your notification thresholds.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-3">
+                 <Button asChild size="sm" variant="outline" className="w-full text-xs">
+                    <Link href="/settings">
+                        Manage Alert Settings <ArrowRight className="ml-2 h-3 w-3" />
+                    </Link>
+                </Button>
+            </CardContent>
+        </Card>
       </CollapsibleContent>
     </Collapsible>
   );

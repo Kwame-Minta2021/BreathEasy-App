@@ -9,13 +9,18 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarInset,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
-import { Leaf } from 'lucide-react';
+import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
+import { Leaf, MessageCircle } from 'lucide-react';
 import { APP_NAME } from '@/lib/constants';
 import { Toaster } from "@/components/ui/toaster";
+import { Button } from '../ui/button';
 
 
 interface AppLayoutProps {
@@ -23,6 +28,8 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
+
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r">
@@ -37,9 +44,23 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarContent>
           <SidebarNav />
         </SidebarContent>
-        <SidebarFooter className="p-2 space-y-2">
+        <SidebarFooter className="p-2 space-y-1">
           <NotificationsSidebar />
-          <div className="flex justify-center group-data-[collapsible=icon]:justify-center">
+          
+          <SidebarMenu>
+            <SidebarMenuItem>
+                <SidebarMenuButton 
+                    onClick={() => setIsChatbotOpen(true)}
+                    tooltip={{ children: "AI Assistant", side: "right", align: "center" }}
+                    className="w-full"
+                >
+                    <MessageCircle />
+                    <span>AI Assistant</span>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          <div className="flex justify-center group-data-[collapsible=icon]:justify-center mt-1">
              <ThemeToggleButton />
           </div>
         </SidebarFooter>
@@ -52,6 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             © {new Date().getFullYear()} {APP_NAME}. All rights reserved.
         </footer>
       </SidebarInset>
+      <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
       <Toaster />
     </SidebarProvider>
   );
