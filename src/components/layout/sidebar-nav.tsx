@@ -19,6 +19,7 @@ const mainNavItems = [
   { href: '/visualizations', label: 'Visualizations', icon: BarChart3 },
   { href: '/ai-analyzer', label: 'AI Analyzer', icon: Brain },
   { href: '/reinforcement-analysis', label: 'RL Analysis', icon: ShieldAlert },
+  { href: '/settings', label: 'Settings', icon: Settings }, // Added Settings
 ];
 
 
@@ -48,3 +49,4 @@ export function SidebarNav() {
     </SidebarMenu>
   );
 }
+
