@@ -2,7 +2,7 @@
 "use client";
 
 import type { AirQualityReading, HistoricalAirQualityReading, UserThresholds, AppNotification } from '@/types';
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { fetchAiAnalysis, fetchActionRecommendations } from '@/lib/actions';
 import type { AirQualityAnalysisInput } from '@/ai/flows/air-quality-analysis';
 import type { ActionRecommendationsInput } from '@/ai/flows/action-recommendations';
@@ -49,7 +49,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const [historicalData, setHistoricalData] = useState<HistoricalAirQualityReading[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [actionRecommendations, setActionRecommendations] = useState<string[] | null>(null);
-  const [isLoadingReadings, setIsLoadingReadings] = useState(true); // True until first data/error from Firebase
+  const [isLoadingReadings, setIsLoadingReadings] = useState(true);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [thresholds, setThresholds] = useState<UserThresholds>({});
@@ -59,6 +59,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     to: new Date(),
   });
   const [lastProcessedForAI, setLastProcessedForAI] = useState<AirQualityReading | null>(null);
+  const initialSensorLoadDoneRef = useRef(false);
 
 
   const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
@@ -73,7 +74,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   }, []);
 
   const updateAiData = useCallback(async (data: AirQualityReading) => {
-    if (isLoadingAnalysis || isLoadingRecommendations) return; // Avoid parallel calls
+    if (isLoadingAnalysis || isLoadingRecommendations) return;
 
     setIsLoadingAnalysis(true);
     setIsLoadingRecommendations(true);
@@ -138,26 +139,35 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   }, [thresholds, notifications]);
 
+
   // Effect for fetching sensor data from Firebase
   useEffect(() => {
-    const sensorDataRef = ref(database, SENSOR_DATA_PATH);
+    const sensorDataRefRealtime = ref(database, SENSOR_DATA_PATH);
+    
+    // Set loading to true only if initial load hasn't happened.
+    // This ensures that if dependencies of this effect cause re-runs,
+    // we don't flicker the loading state if data has already been loaded once.
+    if (!initialSensorLoadDoneRef.current) {
+      setIsLoadingReadings(true);
+    }
 
     const handleData = (snapshot: DataSnapshot) => {
       // Uncomment for debugging:
       // console.log(`[${new Date().toLocaleTimeString()}] Firebase snapshot for ${SENSOR_DATA_PATH}:`, snapshot.val());
       
-      if (isLoadingReadings) {
-        setIsLoadingReadings(false); // Initial load is complete (data or null received)
+      if (!initialSensorLoadDoneRef.current) {
+        setIsLoadingReadings(false); // Mark initial load as done
+        initialSensorLoadDoneRef.current = true;
       }
 
       const fbData = snapshot.val() as FirebaseSensorReading | null;
       // Uncomment for debugging:
-      // console.log(`[${new Date().toLocaleTimeString()}] Parsed fbData:`, fbData);
+      // console.log(`[${new Date().toLocaleTimeString()}] Parsed fbData for ${SENSOR_DATA_PATH}:`, fbData);
 
       if (fbData) {
         const appData = mapFirebaseToAppReading(fbData);
         // Uncomment for debugging:
-        // console.log(`[${new Date().toLocaleTimeString()}] Mapped appData:`, appData);
+        // console.log(`[${new Date().toLocaleTimeString()}] Mapped appData for ${SENSOR_DATA_PATH}:`, appData);
 
         setCurrentData(appData);
         setHistoricalData(prevHist => {
@@ -169,7 +179,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         checkForNotifications(appData);
 
         let shouldUpdateAI = false;
-        if (!lastProcessedForAI) { // First time getting data or after data was null
+        if (!lastProcessedForAI) {
             shouldUpdateAI = true;
         } else {
             const significantChange = Object.keys(appData).some(key => {
@@ -177,7 +187,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
                 const previousVal = lastProcessedForAI[key as keyof AirQualityReading];
                 if (typeof currentVal === 'number' && typeof previousVal === 'number') {
                     if (previousVal === 0 && currentVal !== 0) return true;
-                    if (previousVal === 0 && currentVal === 0) return false;
+                    if (previousVal === 0 && currentVal === 0) return false; // Avoid division by zero
                     return Math.abs(currentVal - previousVal) / previousVal > 0.1; // 10% change
                 }
                 return false;
@@ -200,40 +210,43 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
 
     const handleError = (error: Error) => {
       console.error(`Firebase ${SENSOR_DATA_PATH} data read failed:`, error);
-      if (isLoadingReadings) {
-        setIsLoadingReadings(false); // Initial load attempt failed
+      if (!initialSensorLoadDoneRef.current) {
+        setIsLoadingReadings(false); // Mark initial load attempt as done (even if error)
+        initialSensorLoadDoneRef.current = true;
       }
       setCurrentData(null);
       setLastProcessedForAI(null);
     };
 
-    onValue(sensorDataRef, handleData, handleError);
+    // console.log(`[${new Date().toLocaleTimeString()}] Attaching Firebase listener to ${SENSOR_DATA_PATH}`);
+    onValue(sensorDataRefRealtime, handleData, handleError);
 
     return () => {
-      off(sensorDataRef, 'value', handleData);
+      // console.log(`[${new Date().toLocaleTimeString()}] Detaching Firebase listener from ${SENSOR_DATA_PATH}`);
+      off(sensorDataRefRealtime, 'value', handleData);
+      // initialSensorLoadDoneRef.current = false; // Reset if component unmounts fully, allowing re-init of loading state
     };
-  }, [isLoadingReadings, mapFirebaseToAppReading, checkForNotifications, updateAiData, lastProcessedForAI]); // Dependencies updated
+  // These dependencies ensure the listener is re-attached if these stable callback functions change
+  // (which happens if *their* own dependencies change, e.g., thresholds for checkForNotifications).
+  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData]);
 
   // Effect for fetching user thresholds from Firebase
   useEffect(() => {
     const thresholdsRef = ref(database, USER_THRESHOLDS_PATH);
     const handleThresholdData = (snapshot: DataSnapshot) => {
         const savedThresholds = snapshot.val() as UserThresholds | null;
-        // Uncomment for debugging:
-        // console.log("Firebase thresholds received:", savedThresholds);
         if (savedThresholds) {
             setThresholds(savedThresholds);
         } else {
             const defaultThresholdsInit: UserThresholds = {};
             POLLUTANTS_LIST.forEach(p => {
-                defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER; // Default to no alert
+                defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER;
             });
             setThresholds(defaultThresholdsInit);
         }
     };
     const handleThresholdError = (error: Error) => {
         console.error(`Firebase ${USER_THRESHOLDS_PATH} data read failed:`, error);
-        // Initialize with defaults if read fails
         const defaultThresholdsInit: UserThresholds = {};
         POLLUTANTS_LIST.forEach(p => {
             defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER;
