@@ -12,12 +12,12 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
-  useSidebar,
+  useSidebar, // Assuming useSidebar is correctly imported from the same file as SidebarProvider
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
 import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
-import { Leaf, MessageCircle, Settings as SettingsIcon, Sun, Moon } from 'lucide-react';
+import { Leaf, MessageCircle, Settings as SettingsIcon, Sun, Moon, Loader2 } from 'lucide-react';
 import { APP_NAME } from '@/lib/constants';
 import { Toaster } from "@/components/ui/toaster";
 import Link from 'next/link';
@@ -36,19 +36,38 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const [appLayoutMounted, setAppLayoutMounted] = React.useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
-
+  
   React.useEffect(() => {
-    setMounted(true);
+    setAppLayoutMounted(true);
   }, []);
 
-  // Conditionally call useSidebar and provide defaults for SSR/pre-mount
-  const sidebarHookResult = mounted ? useSidebar() : null;
-  const isMobile = sidebarHookResult ? sidebarHookResult.isMobile : false;
-  // Add any other properties from useSidebar with defaults if needed by AppLayout directly
-  // For example: const sidebarState = sidebarHookResult ? sidebarHookResult.state : 'expanded';
+  // Defer calling useSidebar and accessing its properties until appLayoutMounted
+  const sidebarHookResult = appLayoutMounted ? useSidebar() : null;
+  const isMobile = sidebarHookResult ? sidebarHookResult.isMobile : false; // Default for SSR/pre-mount
+
+  if (!appLayoutMounted) {
+    // Render null or a minimal placeholder if not mounted, to ensure SidebarProvider has initialized
+    return null; 
+  }
+
+  // Now that appLayoutMounted is true, sidebarHookResult should be valid if SidebarProvider has also mounted.
+  // If sidebarHookResult is still null here, it means SidebarProvider hasn't provided context yet,
+  // which would be unexpected if SidebarProvider itself waits for mount.
+
+  if (!sidebarHookResult) {
+    // This case indicates SidebarProvider might not have mounted and provided context yet.
+    // Return a loader or null to prevent errors from useSidebar() in child components like <Sidebar />
+     return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2">Initializing Layout...</p>
+      </div>
+    );
+  }
+
 
   return (
     <>
@@ -56,18 +75,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarHeader className="p-4 items-center">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-7 w-7 text-primary flex-shrink-0" />
-            {mounted ? (
-              isMobile ? (
-                <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
-                  {APP_NAME}
-                </SheetTitle>
-              ) : (
-                <div className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
-                  {APP_NAME}
-                </div>
-              )
+            {isMobile ? (
+              <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
+                {APP_NAME}
+              </SheetTitle>
             ) : (
-              // Fallback for server render / pre-mount client render ensures consistency
               <div className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
                 {APP_NAME}
               </div>
@@ -114,7 +126,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     className="w-full"
                     tooltip={{ children: "Change Theme", side: "right", align: "center" }}
                   >
-                    {mounted ? (resolvedTheme === 'dark' ? <Moon /> : <Sun />) : <Sun className="opacity-0"/>}
+                    {resolvedTheme === 'dark' ? <Moon /> : <Sun />}
                     <span>Change Theme</span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
@@ -131,14 +143,14 @@ export function AppLayout({ children }: AppLayoutProps) {
       <SidebarInset>
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
-          <SidebarTrigger />
+          {sidebarHookResult && <SidebarTrigger />} {/* Ensure sidebarHookResult is available for SidebarTrigger */}
           <Link href="/" className="text-lg font-bold text-primary font-headline">
             {APP_NAME}
           </Link>
            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1.5 rounded-md hover:bg-accent">
-                {mounted ? (resolvedTheme === 'dark' ? <Moon size={20} /> : <Sun size={20} />) : <Sun size={20} className="opacity-0"/>}
+                {resolvedTheme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
                 <span className="sr-only">Toggle theme</span>
               </button>
             </DropdownMenuTrigger>
