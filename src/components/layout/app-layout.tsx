@@ -3,7 +3,6 @@
 
 import React from 'react';
 import {
-  SidebarProvider,
   Sidebar,
   SidebarHeader,
   SidebarContent,
@@ -13,7 +12,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
-  useSidebar, // Ensure useSidebar is imported
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
@@ -29,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SheetTitle } from '@/components/ui/sheet'; // Ensure SheetTitle is imported
+import { SheetTitle } from '@/components/ui/sheet';
 
 
 interface AppLayoutProps {
@@ -40,19 +39,23 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
-  const { isMobile } = useSidebar(); // Get isMobile from useSidebar context
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Conditionally call useSidebar and provide defaults for SSR/pre-mount
+  const sidebarHookResult = mounted ? useSidebar() : null;
+  const isMobile = sidebarHookResult ? sidebarHookResult.isMobile : false;
+  // Add any other properties from useSidebar with defaults if needed by AppLayout directly
+  // For example: const sidebarState = sidebarHookResult ? sidebarHookResult.state : 'expanded';
+
   return (
-    <SidebarProvider defaultOpen>
+    <>
       <Sidebar collapsible="icon" className="border-r">
         <SidebarHeader className="p-4 items-center">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-7 w-7 text-primary flex-shrink-0" />
-            {/* Conditional rendering for the title based on mounted and isMobile state */}
             {mounted ? (
               isMobile ? (
                 <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
@@ -64,7 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </div>
               )
             ) : (
-              // Fallback for SSR and initial client render (matches desktop version to prevent layout shift and SSR errors)
+              // Fallback for server render / pre-mount client render ensures consistency
               <div className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
                 {APP_NAME}
               </div>
@@ -152,6 +155,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       </SidebarInset>
       <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
       <Toaster />
-    </SidebarProvider>
+    </>
   );
 }
