@@ -37,16 +37,16 @@ export default function DashboardPage() {
       ) : (
         <>
           <CurrentReadingsGrid currentData={currentData} isLoading={!currentData} />
+          <HistoricalDataChart
+            data={historicalData}
+            selectedPollutants={INITIAL_POLLUTANTS_FOR_CHART}
+            isLoading={historicalData.length === 0}
+          />
           <AiInsightsSection
             analysis={aiAnalysis}
             recommendations={actionRecommendations}
             isLoadingAnalysis={isLoadingAnalysis}
             isLoadingRecommendations={isLoadingRecommendations}
-          />
-          <HistoricalDataChart
-            data={historicalData}
-            selectedPollutants={INITIAL_POLLUTANTS_FOR_CHART}
-            isLoading={historicalData.length === 0}
           />
         </>
       )}
@@ -63,3 +63,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
