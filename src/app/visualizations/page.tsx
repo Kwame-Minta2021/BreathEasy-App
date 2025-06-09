@@ -1,6 +1,6 @@
 
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react'; // Import useMemo
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { HistoricalDataChart } from '@/components/dashboard/historical-data-chart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,16 +79,18 @@ export default function VisualizationsPage() {
     unit: p.unit
   })) : [];
 
-  const barChartConfig = POLLUTANTS_LIST.reduce((config, p) => {
-    const detail = pollutantDetailsForBarChart[p.id];
-    if (detail) {
-      config[p.name] = {
-        label: p.name,
-        color: detail.color,
-      };
-    }
-    return config;
-  }, {} as ChartConfig);
+  const barChartConfig = useMemo(() => {
+    return POLLUTANTS_LIST.reduce((config, p) => {
+      const detail = pollutantDetailsForBarChart[p.id];
+      if (detail) {
+        config[p.name] = {
+          label: p.name,
+          color: detail.color,
+        };
+      }
+      return config;
+    }, {} as ChartConfig);
+  }, []); // POLLUTANTS_LIST is constant
 
 
   return (
@@ -193,4 +195,3 @@ export default function VisualizationsPage() {
     </div>
   );
 }
-

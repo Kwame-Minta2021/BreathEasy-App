@@ -1,3 +1,4 @@
+
 "use client"
 
 import type { HistoricalAirQualityReading, Pollutant } from '@/types';
@@ -12,6 +13,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, TooltipProps } from 'recharts';
 import type { ChartConfig } from '@/components/ui/chart';
 import { format } from 'date-fns';
+import React from 'react'; // Import React for useMemo
 
 interface HistoricalDataChartProps {
   data: HistoricalAirQualityReading[];
@@ -28,33 +30,40 @@ const pollutantDetails: Record<Pollutant['id'], { name: string; color: string }>
   pm10_0: { name: 'PM10', color: 'hsl(var(--chart-1))' }, // Re-use colors if more than 5
 };
 
+// Define the tooltip content component
+const HistoricalChartTooltipActualContent = ({ active, payload, label, chartConfigFromProp }: TooltipProps<number, string> & { chartConfigFromProp: ChartConfig }) => {
+  if (active && payload && payload.length) {
+    return (
+      <ChartTooltipContent
+        className="w-[200px]"
+        labelFormatter={(value) => format(new Date(value), "HH:mm:ss")}
+        formatter={(value, name) => (
+           <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chartConfigFromProp[name as string]?.color }} />
+              {chartConfigFromProp[name as string]?.label || name}: {typeof value === 'number' ? value.toFixed(1) : value}
+            </div>
+        )}
+      />
+    );
+  }
+  return null;
+};
+
 
 export function HistoricalDataChart({ data, selectedPollutants, isLoading }: HistoricalDataChartProps) {
-  const chartConfig = selectedPollutants.reduce((config, id) => {
-    const detail = pollutantDetails[id];
-    if (detail) {
-      config[id] = { label: detail.name, color: detail.color };
-    }
-    return config;
-  }, {} as ChartConfig);
+  const chartConfig = React.useMemo(() => {
+    return selectedPollutants.reduce((config, id) => {
+      const detail = pollutantDetails[id];
+      if (detail) {
+        config[id] = { label: detail.name, color: detail.color };
+      }
+      return config;
+    }, {} as ChartConfig);
+  }, [selectedPollutants]);
   
-  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-    if (active && payload && payload.length) {
-      return (
-        <ChartTooltipContent
-          className="w-[200px]"
-          labelFormatter={(value) => format(new Date(value), "HH:mm:ss")}
-          formatter={(value, name) => (
-             <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chartConfig[name as string]?.color }} />
-                {chartConfig[name as string]?.label || name}: {typeof value === 'number' ? value.toFixed(1) : value}
-              </div>
-          )}
-        />
-      );
-    }
-    return null;
-  };
+  const tooltipContentRenderer = React.useMemo(() => {
+    return (props: TooltipProps<number, string>) => <HistoricalChartTooltipActualContent {...props} chartConfigFromProp={chartConfig} />;
+  }, [chartConfig]);
 
 
   return (
@@ -71,7 +80,6 @@ export function HistoricalDataChart({ data, selectedPollutants, isLoading }: His
              </div>
           ) : (
             <ChartContainer config={chartConfig} className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
@@ -82,7 +90,7 @@ export function HistoricalDataChart({ data, selectedPollutants, isLoading }: His
                     axisLine={false}
                   />
                   <YAxis stroke="hsl(var(--foreground))" tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<CustomTooltip />} cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }} />
+                  <ChartTooltip content={tooltipContentRenderer} cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }} />
                   <ChartLegend content={<ChartLegendContent />} />
                   {selectedPollutants.map((pollutantId) => {
                      const detail = pollutantDetails[pollutantId];
@@ -102,7 +110,6 @@ export function HistoricalDataChart({ data, selectedPollutants, isLoading }: His
                      return null;
                   })}
                 </LineChart>
-              </ResponsiveContainer>
             </ChartContainer>
           )}
         </CardContent>
