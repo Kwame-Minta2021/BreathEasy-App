@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, CheckCircle2, Brain, CalendarDays, TrendingUp, ShieldCheck, Lightbulb } from 'lucide-react';
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { fetch24hForecast, fetchWeeklyImpact, fetchHealthRisks, fetchActionRecommendations } from '@/lib/actions';
-import type { HistoricalAirQualityReading, AirQualityReading } from '@/types'; // Added AirQualityReading
+import type { HistoricalAirQualityReading, AirQualityReading } from '@/types';
 
 interface ForecastData {
   prediction: string;
@@ -26,10 +26,10 @@ interface ActionRecsData {
   recommendations: string[];
 }
 
-const initialForecast: ForecastData = { prediction: "Loading forecast..." };
-const initialWeeklyImpact: ImpactData = { summary: "Loading weekly impact analysis..." };
-const initialHealthRisks: HealthRiskData = { riskLevel: "Loading...", symptoms: [], advice: ["Loading health advice..."] };
-const initialActionRecs: ActionRecsData = { recommendations: ["Loading recommendations..."] };
+const initialForecast: ForecastData = { prediction: "Loading 24-hour forecast..." };
+const initialWeeklyImpact: ImpactData = { summary: "Loading weekly impact analysis...", potentialSymptoms: ["Loading potential symptoms..."] };
+const initialHealthRisks: HealthRiskData = { riskLevel: "Loading risk level...", symptoms: ["Loading symptoms..."], advice: ["Loading health advice..."] };
+const initialActionRecs: ActionRecsData = { recommendations: ["Loading action recommendations..."] };
 
 
 export default function AiAnalyzerPage() {
@@ -46,8 +46,20 @@ export default function AiAnalyzerPage() {
 
 
   const loadAiAnalyses = async () => {
-    if (!currentData && historicalData.length === 0) {
-        // Set to initial loading states if no data to process
+    if (!currentData && historicalData.length === 0 && !isLoadingReadings) {
+        setForecast24h({ prediction: "No current air quality data available to generate a forecast."});
+        setWeeklyImpact({ summary: "Insufficient historical data for weekly impact analysis.", potentialSymptoms: [] });
+        setHealthRisks({ riskLevel: "Unavailable", symptoms: ["No data for health risk assessment."], advice: ["Ensure sensor is active and providing data."] });
+        setActionRecs({ recommendations: ["No data available for recommendations."] });
+        setIsLoadingForecast(false);
+        setIsLoadingWeekly(false);
+        setIsLoadingHealth(false);
+        setIsLoadingRecs(false);
+        return;
+    }
+    
+    if (isLoadingReadings && !currentData && historicalData.length === 0) {
+        // Still loading initial readings, keep loading states for AI active
         setForecast24h(initialForecast);
         setWeeklyImpact(initialWeeklyImpact);
         setHealthRisks(initialHealthRisks);
@@ -59,6 +71,7 @@ export default function AiAnalyzerPage() {
         return;
     }
 
+
     setIsLoadingForecast(true);
     setIsLoadingWeekly(true);
     setIsLoadingHealth(true);
@@ -68,12 +81,17 @@ export default function AiAnalyzerPage() {
       co: 0, vocs: 0, ch4Lpg: 0, pm1_0: 0, pm2_5: 0, pm10_0: 0 // Default empty reading
     });
 
+    const historicalDataForWeeklyImpact = historicalData.map(reading => ({
+      ...reading,
+      timestamp: reading.timestamp.toISOString(),
+    }));
+
 
     try {
       const [forecastRes, weeklyRes, healthRes, recsRes] = await Promise.all([
         fetch24hForecast({ currentReadings: dataForAi }),
-        fetchWeeklyImpact({ historicalData }),
-        fetchHealthRisks({ currentReadings: dataForAi, forecastData: null }),
+        fetchWeeklyImpact({ historicalData: historicalDataForWeeklyImpact }),
+        fetchHealthRisks({ currentReadings: dataForAi, forecastData: forecast24h?.prediction !== initialForecast.prediction ? forecast24h : null }), // Pass forecast if already loaded
         fetchActionRecommendations({
             co: dataForAi.co,
             vocs: dataForAi.vocs,
@@ -83,17 +101,17 @@ export default function AiAnalyzerPage() {
             pm10: dataForAi.pm10_0,
         })
       ]);
-      setForecast24h(forecastRes.prediction ? forecastRes : initialForecast);
-      setWeeklyImpact(weeklyRes.summary ? weeklyRes : initialWeeklyImpact);
-      setHealthRisks(healthRes.riskLevel ? healthRes : initialHealthRisks);
-      setActionRecs(recsRes.recommendations && recsRes.recommendations.length > 0 ? recsRes : initialActionRecs);
+      setForecast24h(forecastRes.prediction ? forecastRes : { prediction: "24-hour forecast could not be generated." });
+      setWeeklyImpact(weeklyRes.summary ? weeklyRes : { summary: "Weekly impact analysis could not be generated.", potentialSymptoms: [] });
+      setHealthRisks(healthRes.riskLevel ? healthRes : { riskLevel: "Unknown", symptoms: [], advice: ["Health risk assessment could not be completed."] });
+      setActionRecs(recsRes.recommendations && recsRes.recommendations.length > 0 ? recsRes : { recommendations: ["Action recommendations could not be generated."] });
 
     } catch (error) {
       console.error("Error fetching AI analyses:", error);
-      setForecast24h(initialForecast);
-      setWeeklyImpact(initialWeeklyImpact);
-      setHealthRisks(initialHealthRisks);
-      setActionRecs(initialActionRecs);
+      setForecast24h({ prediction: "Error loading 24-hour forecast." });
+      setWeeklyImpact({ summary: "Error loading weekly impact analysis.", potentialSymptoms: [] });
+      setHealthRisks({ riskLevel: "Error", symptoms: ["Error loading symptoms."], advice: ["Error loading health advice."] });
+      setActionRecs({ recommendations: ["Error loading recommendations."] });
     } finally {
       setIsLoadingForecast(false);
       setIsLoadingWeekly(false);
@@ -103,20 +121,12 @@ export default function AiAnalyzerPage() {
   };
 
   useEffect(() => {
-    if (currentData || historicalData.length > 0) {
+    // Load analysis if we have data, or if we just finished loading readings (even if no data came through)
+    if ((currentData || historicalData.length > 0) || !isLoadingReadings) {
         loadAiAnalyses();
-    } else if (!isLoadingReadings) { // If not loading readings and no data, set to initial states
-        setForecast24h(initialForecast);
-        setWeeklyImpact(initialWeeklyImpact);
-        setHealthRisks(initialHealthRisks);
-        setActionRecs(initialActionRecs);
-        setIsLoadingForecast(false);
-        setIsLoadingWeekly(false);
-        setIsLoadingHealth(false);
-        setIsLoadingRecs(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentData, historicalData, isLoadingReadings]);
+  }, [currentData, historicalData, isLoadingReadings]); // isLoadingReadings ensures we run once after initial load
 
 
   return (
@@ -127,7 +137,7 @@ export default function AiAnalyzerPage() {
           <CardDescription>Insights and forecasts based on current and historical air quality data.</CardDescription>
         </CardHeader>
         <CardContent>
-           <Button onClick={loadAiAnalyses} disabled={isLoadingReadings || (!currentData && historicalData.length === 0) || isLoadingForecast || isLoadingWeekly || isLoadingHealth || isLoadingRecs}>
+           <Button onClick={loadAiAnalyses} disabled={isLoadingReadings || isLoadingForecast || isLoadingWeekly || isLoadingHealth || isLoadingRecs}>
             { (isLoadingForecast || isLoadingWeekly || isLoadingHealth || isLoadingRecs) ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
@@ -143,8 +153,8 @@ export default function AiAnalyzerPage() {
             <CardDescription>Predicted gas concentrations and general air quality for the next 24 hours.</CardDescription>
           </CardHeader>
           <CardContent className="min-h-[100px]">
-            {isLoadingForecast ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">Loading forecast...</p></div> :
-             forecast24h && forecast24h.prediction ? <p>{forecast24h.prediction} {forecast24h.confidence && `(Confidence: ${forecast24h.confidence})`}</p> : <p className="text-muted-foreground">No forecast data available at the moment.</p>
+            {isLoadingForecast ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">{initialForecast.prediction}</p></div> :
+             forecast24h && forecast24h.prediction ? <p>{forecast24h.prediction} {forecast24h.confidence && `(Confidence: ${forecast24h.confidence})`}</p> : <p className="text-muted-foreground">Forecast data is currently unavailable.</p>
             }
           </CardContent>
         </Card>
@@ -154,10 +164,10 @@ export default function AiAnalyzerPage() {
             <CardDescription>Expected air quality trends and potential health outcomes for the coming week, based on historical data.</CardDescription>
           </CardHeader>
           <CardContent className="min-h-[100px]">
-            {isLoadingWeekly ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">Loading weekly analysis...</p></div> :
-             weeklyImpact && weeklyImpact.summary ? <p>{weeklyImpact.summary}</p> : <p className="text-muted-foreground">No weekly impact data available at the moment.</p>
+            {isLoadingWeekly ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">{initialWeeklyImpact.summary}</p></div> :
+             weeklyImpact && weeklyImpact.summary ? <p>{weeklyImpact.summary}</p> : <p className="text-muted-foreground">Weekly impact data is currently unavailable.</p>
             }
-             {weeklyImpact?.potentialSymptoms && weeklyImpact.potentialSymptoms.length > 0 && weeklyImpact.potentialSymptoms[0] !== "Loading health advice..." && (
+             {weeklyImpact?.potentialSymptoms && weeklyImpact.potentialSymptoms.length > 0 && weeklyImpact.potentialSymptoms[0] !== initialWeeklyImpact.potentialSymptoms?.[0] && (
               <div className="mt-2">
                 <h4 className="text-sm font-semibold">Potential Symptoms:</h4>
                 <ul className="list-disc list-inside text-xs text-muted-foreground">
@@ -175,27 +185,27 @@ export default function AiAnalyzerPage() {
           <CardDescription>Risk levels, potential symptoms, and advisory based on current and predicted conditions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 min-h-[150px]">
-          {isLoadingHealth ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">Loading health information...</p></div> : healthRisks && healthRisks.riskLevel ? (
+          {isLoadingHealth ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">{initialHealthRisks.riskLevel}</p></div> : healthRisks && healthRisks.riskLevel ? (
             <>
               <p><span className="font-semibold">Risk Level:</span> {healthRisks.riskLevel}</p>
               <div>
                 <h4 className="font-semibold">Potential Symptoms:</h4>
-                {healthRisks.symptoms.length > 0 && healthRisks.symptoms[0] !== "Loading health advice..." ? (
+                {healthRisks.symptoms.length > 0 && healthRisks.symptoms[0] !== initialHealthRisks.symptoms[0] ? (
                   <ul className="list-disc list-inside text-sm">
                     {healthRisks.symptoms.map((symptom, i) => <li key={i}>{symptom}</li>)}
                   </ul>
-                ): (<p className="text-sm text-muted-foreground">{healthRisks.riskLevel === "Loading..." ? "Loading symptoms..." : "No specific symptoms highlighted for current levels."}</p>)}
+                ): (<p className="text-sm text-muted-foreground">{healthRisks.riskLevel === initialHealthRisks.riskLevel ? initialHealthRisks.symptoms[0] : "No specific symptoms highlighted for current levels."}</p>)}
               </div>
               <div>
                 <h4 className="font-semibold">Advice:</h4>
-                 {healthRisks.advice.length > 0 && healthRisks.advice[0] !== "Loading health advice..." ? (
+                 {healthRisks.advice.length > 0 && healthRisks.advice[0] !== initialHealthRisks.advice[0] ? (
                   <ul className="list-disc list-inside text-sm">
                     {healthRisks.advice.map((adv, i) => <li key={i}>{adv}</li>)}
                   </ul>
-                ): (<p className="text-sm text-muted-foreground">{healthRisks.riskLevel === "Loading..." ? "Loading advice..." : "General health guidelines apply."}</p>)}
+                ): (<p className="text-sm text-muted-foreground">{healthRisks.riskLevel === initialHealthRisks.riskLevel ? initialHealthRisks.advice[0] : "General health guidelines apply."}</p>)}
               </div>
             </>
-          ) : <p className="text-muted-foreground">No health risk data available at the moment.</p>}
+          ) : <p className="text-muted-foreground">Health risk data is currently unavailable.</p>}
         </CardContent>
       </Card>
 
@@ -205,7 +215,7 @@ export default function AiAnalyzerPage() {
           <CardDescription>Actionable advice for improving air quality and mitigating health risks.</CardDescription>
         </CardHeader>
         <CardContent className="min-h-[100px]">
-           {isLoadingRecs ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">Loading recommendations...</p></div> : actionRecs?.recommendations && actionRecs.recommendations.length > 0 && actionRecs.recommendations[0] !== "Loading recommendations..." ? (
+           {isLoadingRecs ? <div className="flex items-center space-x-2"><Loader2 className="animate-spin h-4 w-4" /> <p className="text-sm text-muted-foreground">{initialActionRecs.recommendations[0]}</p></div> : actionRecs?.recommendations && actionRecs.recommendations.length > 0 && actionRecs.recommendations[0] !== initialActionRecs.recommendations[0] ? (
                 <ul className="space-y-2">
                   {actionRecs.recommendations.map((rec, index) => (
                     <li key={index} className="flex items-start text-sm">
@@ -215,10 +225,12 @@ export default function AiAnalyzerPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">{actionRecs?.recommendations && actionRecs.recommendations[0] === "Loading recommendations..." ? "Loading recommendations..." : "No specific recommendations available at this time."}</p>
+                <p className="text-sm text-muted-foreground">{actionRecs?.recommendations && actionRecs.recommendations[0] === initialActionRecs.recommendations[0] ? initialActionRecs.recommendations[0] : "No specific recommendations available at this time."}</p>
               )}
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
