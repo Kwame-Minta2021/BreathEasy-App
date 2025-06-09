@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends an SMS notification to a control room using Twilio.
+ * @fileOverview Formats and sends an SMS notification to a control room using Twilio, optionally including current air quality readings.
  *
  * - reportToControlRoom - A function that formats a message and sends it via SMS.
  * - ReportToControlRoomInput - The input type for the function.
@@ -12,9 +12,18 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import Twilio from 'twilio';
 
+const AirQualityReadingSchemaForSms = z.object({
+  co: z.number().describe('Carbon Monoxide level in ppm'),
+  vocs: z.number().describe('Volatile Organic Compounds level in ppb'),
+  ch4Lpg: z.number().describe('Methane/Liquified Petroleum Gas level in ppm'),
+  pm1_0: z.number().describe('Particulate Matter 1.0 level in µg/m³'),
+  pm2_5: z.number().describe('Particulate Matter 2.5 level in µg/m³'),
+  pm10_0: z.number().describe('Particulate Matter 10 level in µg/m³'),
+}).optional().describe("Optional current air quality sensor readings to include in the SMS.");
+
 const ReportToControlRoomInputSchema = z.object({
   message: z.string().describe("The core message or reason for the report."),
-  // currentReadings could be added if needed for the SMS content
+  currentReadings: AirQualityReadingSchemaForSms,
   // location: z.optional(z.string()).describe("Optional location data.")
 });
 export type ReportToControlRoomInput = z.infer<typeof ReportToControlRoomInputSchema>;
@@ -35,10 +44,20 @@ const reportFormattingPrompt = ai.definePrompt({
   name: 'reportFormattingPrompt',
   input: {schema: ReportToControlRoomInputSchema},
   output: {schema: z.object({ formattedSms: z.string() }) },
-  prompt: `Format a concise SMS alert for a control room based on the following user message:
+  prompt: `Format a concise SMS alert for a control room based on the following information:
 User Message: "{{message}}"
+{{#if currentReadings}}
+Current Air Quality Readings:
+- CO: {{currentReadings.co}} ppm
+- VOCs: {{currentReadings.vocs}} ppb
+- CH4/LPG: {{currentReadings.ch4Lpg}} ppm
+- PM1.0: {{currentReadings.pm1_0}} µg/m³
+- PM2.5: {{currentReadings.pm2_5}} µg/m³
+- PM10: {{currentReadings.pm10_0}} µg/m³
+{{/if}}
 The SMS should be clear, urgent, and include key details.
-Example SMS: "URGENT: Air quality alert triggered. User reports: '{{message}}'. Investigate immediately."
+Example SMS if readings are present: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Investigate."
+Example SMS if no readings: "URGENT: Air quality alert. User reports: '{{message}}'. Investigate immediately."
 Formatted SMS:`,
 });
 
@@ -50,7 +69,7 @@ const reportToControlRoomFlow = ai.defineFlow(
   },
   async (input) => {
     const {output: promptOutput} = await reportFormattingPrompt(input);
-    const smsContent = promptOutput?.formattedSms || `ALERT: ${input.message}`;
+    const smsContent = promptOutput?.formattedSms || `ALERT: ${input.message}${input.currentReadings ? ` - CO: ${input.currentReadings.co}ppm, PM2.5: ${input.currentReadings.pm2_5}µg/m³` : ''}`;
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -65,7 +84,6 @@ const reportToControlRoomFlow = ai.defineFlow(
       };
     }
     
-    // Mask actual credentials if they accidentally get logged by genkit/next
     if (accountSid.startsWith('AC') && accountSid.endsWith('_YOUR_SID_HERE')) {
        console.warn("Twilio Account SID seems to be a placeholder. SMS not sent.");
        return {

@@ -3,24 +3,39 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { PhoneForwarded, BarChartBig } from 'lucide-react';
+import { PhoneForwarded, BarChartBig, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { reportToControlRoom } from '@/lib/actions'; // Assuming this action will be created
+import { reportToControlRoom } from '@/lib/actions';
+import { useAirQuality } from '@/contexts/air-quality-context'; // Import useAirQuality
+import type { AirQualityReading } from '@/types';
+
 
 export function TopActionsBar() {
   const router = useRouter();
   const { toast } = useToast();
+  const { currentData } = useAirQuality(); // Get currentData from context
   const [isReporting, setIsReporting] = React.useState(false);
 
   const handleReport = async () => {
     setIsReporting(true);
     try {
-      // In a real app, you might pass current location or specific data
-      const result = await reportToControlRoom({ message: "Emergency: Air quality alert at current location." });
+      const readingsForSms = currentData ? {
+        co: currentData.co,
+        vocs: currentData.vocs,
+        ch4Lpg: currentData.ch4Lpg,
+        pm1_0: currentData.pm1_0,
+        pm2_5: currentData.pm2_5,
+        pm10_0: currentData.pm10_0,
+      } : undefined;
+
+      const result = await reportToControlRoom({
+        message: "User triggered emergency: Air quality concern from dashboard.",
+        currentReadings: readingsForSms
+      });
       toast({
-        title: "Report Sent",
-        description: result.confirmationMessage || "Control room has been notified.",
+        title: "Report Status",
+        description: result.confirmationMessage || "Control room notification process completed.",
       });
     } catch (error) {
       console.error("Error reporting to control room:", error);
@@ -41,7 +56,11 @@ export function TopActionsBar() {
   return (
     <div className="flex flex-col sm:flex-row items-center justify-end gap-2 mb-6 p-4 border bg-card rounded-lg shadow">
       <Button onClick={handleReport} disabled={isReporting}>
-        <PhoneForwarded className="mr-2 h-4 w-4" />
+        {isReporting ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <PhoneForwarded className="mr-2 h-4 w-4" />
+        )}
         {isReporting ? "Reporting..." : "Report to Control Room"}
       </Button>
       <Button variant="outline" onClick={navigateToReinforcementAnalysis}>

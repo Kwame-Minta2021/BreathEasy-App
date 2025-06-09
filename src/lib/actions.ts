@@ -14,7 +14,7 @@ import type { ForecastWeeklyInput, ForecastWeeklyOutput } from '@/ai/flows/forec
 import { forecastWeekly } from '@/ai/flows/forecast-weekly';
 import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risks';
 import { getHealthRisks } from '@/ai/flows/health-risks';
-import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
+import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room'; // Import the updated types
 import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
 
 
@@ -84,7 +84,15 @@ export async function reportToControlRoom(data: ReportToControlRoomInput): Promi
         return await reportToControlRoomFlow(data);
     } catch (error) {
         console.error("Error reporting to control room:", error);
-        return { confirmationMessage: "Failed to send report.", smsContent: `Error: ${data.message}`};
+        // Ensure the error response includes all fields for ReportToControlRoomOutput
+        let smsContentOnError = `User Message: ${data.message}`;
+        if (data.currentReadings) {
+            smsContentOnError += ` | Readings: CO ${data.currentReadings.co}, PM2.5 ${data.currentReadings.pm2_5}`;
+        }
+        return { 
+            confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`, 
+            smsContent: smsContentOnError,
+            messageSid: undefined
+        };
     }
 }
-
