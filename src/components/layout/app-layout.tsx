@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarTrigger, // Added import
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
@@ -108,6 +109,27 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
+          <SidebarTrigger />
+          <Link href="/" className="text-lg font-bold text-primary font-headline">
+            {APP_NAME}
+          </Link>
+          {/* You can add other mobile-specific header icons here if needed, e.g., a theme toggle */}
+           <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1.5 rounded-md hover:bg-accent">
+                {mounted ? (resolvedTheme === 'dark' ? <Moon size={20} /> : <Sun size={20} />) : <Sun size={20} className="opacity-0"/>}
+                <span className="sr-only">Toggle theme</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme('light')}>Light</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('dark')}>Dark</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('system')}>System</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
         </main>

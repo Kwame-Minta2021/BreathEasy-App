@@ -54,8 +54,8 @@ export function TopActionsBar() {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-end gap-2 mb-6 p-4 border bg-card rounded-lg shadow">
-      <Button onClick={handleReport} disabled={isReporting}>
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start sm:justify-end gap-3 mb-6 p-4 border bg-card rounded-lg shadow">
+      <Button onClick={handleReport} disabled={isReporting} className="w-full sm:w-auto">
         {isReporting ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (
@@ -63,7 +63,7 @@ export function TopActionsBar() {
         )}
         {isReporting ? "Reporting..." : "Report to Control Room"}
       </Button>
-      <Button variant="outline" onClick={navigateToReinforcementAnalysis}>
+      <Button variant="outline" onClick={navigateToReinforcementAnalysis} className="w-full sm:w-auto">
         <BarChartBig className="mr-2 h-4 w-4" />
         Reinforcement Analysis
       </Button>
