@@ -7,8 +7,10 @@ import { fetchAiAnalysis, fetchActionRecommendations } from '@/lib/actions';
 import type { AirQualityAnalysisInput } from '@/ai/flows/air-quality-analysis';
 import type { ActionRecommendationsInput } from '@/ai/flows/action-recommendations';
 import { POLLING_INTERVAL_MS, POLLUTANTS_LIST } from '@/lib/constants';
+import { DateRange } from 'react-day-picker';
+import { addDays } from 'date-fns';
 
-// Helper to generate mock data (copied from original page.tsx and adapted)
+// Helper to generate mock data
 const generateMockReading = (prev?: AirQualityReading): AirQualityReading => {
   const base = {
     co: prev ? prev.co + (Math.random() - 0.5) * 0.2 : 1.5 + Math.random() * 1,
@@ -20,6 +22,9 @@ const generateMockReading = (prev?: AirQualityReading): AirQualityReading => {
   };
   return Object.fromEntries(Object.entries(base).map(([key, value]) => [key, Math.max(0, parseFloat(value.toFixed(1)))])) as AirQualityReading;
 };
+
+const MAX_HISTORICAL_READINGS = 500; // Cap for stored historical readings
+const NUM_INITIAL_MOCK_READINGS = 300; // Number of initial readings to generate
 
 interface AirQualityContextType {
   currentData: AirQualityReading | null;
@@ -34,6 +39,8 @@ interface AirQualityContextType {
   updateThreshold: (pollutantId: keyof AirQualityReading, value: number) => void;
   clearNotification: (notificationId: string) => void;
   fetchInitialData: () => void;
+  dateRange: DateRange | undefined;
+  setDateRange: (range: DateRange | undefined) => void;
 }
 
 const AirQualityContext = createContext<AirQualityContextType | undefined>(undefined);
@@ -46,8 +53,12 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const [isLoadingReadings, setIsLoadingReadings] = useState(true);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
-  const [thresholds, setThresholds] = useState<UserThresholds>({}); // Load from Firebase/localStorage eventually
+  const [thresholds, setThresholds] = useState<UserThresholds>({});
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -7),
+    to: new Date(),
+  });
 
   const updateAiData = useCallback(async (data: AirQualityReading) => {
     setIsLoadingAnalysis(true);
@@ -91,9 +102,8 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       const thresholdValue = thresholds[pollutant.id];
       const currentValue = newData[pollutant.id];
       if (thresholdValue !== undefined && currentValue > thresholdValue) {
-        // Check if a similar notification already exists and is recent
         const existingNotification = notifications.find(
-          n => n.pollutantId === pollutant.id && (new Date().getTime() - n.timestamp.getTime()) < 5 * 60 * 1000 // 5 min window
+          n => n.pollutantId === pollutant.id && (new Date().getTime() - n.timestamp.getTime()) < 5 * 60 * 1000
         );
         if (!existingNotification) {
           newNotifications.push({
@@ -109,44 +119,67 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       }
     });
     if (newNotifications.length > 0) {
-      setNotifications(prev => [...newNotifications, ...prev].slice(0, 10)); // Keep last 10 notifications
+      setNotifications(prev => [...newNotifications, ...prev].slice(0, 10));
     }
   }, [thresholds, notifications]);
 
+  const fetchInitialData = useCallback(() => {
+    setIsLoadingReadings(true);
+    const initialMockReadings: HistoricalAirQualityReading[] = [];
+    let iterDate = dateRange?.from ? new Date(dateRange.from) : addDays(new Date(), -7);
+    let lastMockReading: AirQualityReading | undefined = undefined;
+
+    for (let i = 0; i < NUM_INITIAL_MOCK_READINGS; i++) {
+      const mockTimestamp = new Date(iterDate.getTime() + i * POLLING_INTERVAL_MS);
+      if (mockTimestamp > new Date()) break; 
+
+      lastMockReading = generateMockReading(lastMockReading);
+      initialMockReadings.push({ ...lastMockReading, timestamp: mockTimestamp });
+    }
+    
+    if (initialMockReadings.length > 0) {
+      const latestReading = initialMockReadings[initialMockReadings.length - 1];
+      setCurrentData(latestReading);
+      setHistoricalData(initialMockReadings.slice(-MAX_HISTORICAL_READINGS));
+      updateAiData(latestReading);
+      checkForNotifications(latestReading);
+    } else {
+      // Fallback if no initial readings were generated
+      const firstReading = generateMockReading();
+      const now = new Date();
+      setCurrentData(firstReading);
+      setHistoricalData([{ ...firstReading, timestamp: now }]);
+      updateAiData(firstReading);
+      checkForNotifications(firstReading);
+    }
+    setIsLoadingReadings(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateAiData, checkForNotifications]); // dateRange is not included to prevent re-fetching initial on range change
+
   const fetchData = useCallback(() => {
+    // This function is for polling new data
     setCurrentData(prevData => {
       const newData = generateMockReading(prevData || undefined);
       setHistoricalData(prevHist => {
         const newHist = [...prevHist, { ...newData, timestamp: new Date() }];
-        return newHist.slice(-60); // Keep last 60 readings for 2-min interval (2 hours of data)
+        return newHist.slice(-MAX_HISTORICAL_READINGS);
       });
       updateAiData(newData);
-      checkForNotifications(newData); // Check for notifications with new data
+      checkForNotifications(newData);
       return newData;
     });
-    setIsLoadingReadings(false);
-  }, [updateAiData, checkForNotifications]);
-
-  const fetchInitialData = useCallback(() => {
-    setIsLoadingReadings(true);
-    const initialReading = generateMockReading();
-    setCurrentData(initialReading);
-    setHistoricalData([{ ...initialReading, timestamp: new Date() }]);
-    updateAiData(initialReading);
-    checkForNotifications(initialReading);
-    setIsLoadingReadings(false);
+    setIsLoadingReadings(false); 
   }, [updateAiData, checkForNotifications]);
 
 
   useEffect(() => {
-    fetchInitialData(); // Initial data load
-    const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS); // Poll data every 2 minutes
+    fetchInitialData();
+    const intervalId = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(intervalId);
   }, [fetchData, fetchInitialData]);
 
   const updateThreshold = (pollutantId: keyof AirQualityReading, value: number) => {
     setThresholds(prev => ({ ...prev, [pollutantId]: value }));
-    // Here you would also save to Firebase/localStorage
   };
 
   const clearNotification = (notificationId: string) => {
@@ -167,6 +200,8 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       updateThreshold,
       clearNotification,
       fetchInitialData,
+      dateRange,
+      setDateRange,
     }}>
       {children}
     </AirQualityContext.Provider>
@@ -180,3 +215,4 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
+
