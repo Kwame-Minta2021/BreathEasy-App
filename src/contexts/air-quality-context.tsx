@@ -15,7 +15,7 @@ import { ref, onValue, off, query, orderByKey, limitToLast, DataSnapshot, set as
 // Define a type for the raw Firebase sensor reading structure
 interface FirebaseSensorReading {
   CO_ppm?: number;
-  VOCs_ppm?: number;
+  VOCs_ppm?: number; // Assuming this is indeed PPM from sensor
   CH4_LPG_ppm?: number;
   PM1_0_ug_m3?: number;
   PM2_5_ug_m3?: number;
@@ -89,9 +89,9 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
     const mapped = {
-      co: fbReading.CO_ppm ?? 0,                            // Firebase CO_ppm is in PPM, AI expects PPM.
-      vocs: (fbReading.VOCs_ppm ?? 0) * 1000,               // Firebase VOCs_ppm is in PPM, AI expects PPB. (PPM * 1000 = PPB)
-      ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,                   // Firebase CH4_LPG_ppm is in PPM, AI expects PPM.
+      co: fbReading.CO_ppm ?? 0,
+      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert PPM from sensor to PPB for AI
+      ch4Lpg: fbReading.CH4_LPG_ppm ?? 0, // AI expects PPM, sensor provides PPM
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
       pm10_0: fbReading.PM10_ug_m3 ?? 0,
@@ -99,7 +99,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     return mapped;
   }, []);
 
-  const checkForNotifications = useCallback(() => { // Removed newData param, will use currentDataRef
+  const checkForNotifications = useCallback(() => { 
     const dataToCheck = currentDataRef.current;
     if (!dataToCheck) return;
 
@@ -127,9 +127,9 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     if (newNotificationsToAdd.length > 0) {
       setNotifications(prev => [...newNotificationsToAdd, ...prev].slice(0, 10));
     }
-  }, [thresholds]); // Dependency: thresholds (stable if not frequently changed by user)
+  }, [thresholds]); 
 
-  const updateAiData = useCallback(() => { // Removed data param, will use currentDataRef
+  const updateAiData = useCallback(() => { 
     const dataToProcess = currentDataRef.current;
     if (!dataToProcess || isLoadingAnalysisRef.current || isLoadingRecommendationsRef.current) return;
 
@@ -159,14 +159,14 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         setActionRecommendations(recommendationsResult.recommendations);
         setLastProcessedForAI(dataToProcess);
       }).catch (error => {
-        // console.error("Error fetching AI data:", error);
-        setAiAnalysis("Failed to load AI analysis.");
-        setActionRecommendations(["Failed to load recommendations."]);
+        console.error("Error fetching AI data in updateAiData:", error);
+        setAiAnalysis("Could not retrieve AI analysis at this time.");
+        setActionRecommendations(["Could not retrieve recommendations at this time."]);
       }).finally(() => {
         setIsLoadingAnalysis(false);
         setIsLoadingRecommendations(false);
       });
-  }, []); // No direct state dependencies that change frequently
+  }, []); 
 
   useEffect(() => {
     const sensorDataNodeRef = ref(database, SENSOR_DATA_PATH);
@@ -184,7 +184,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
 
       let fbData: FirebaseSensorReading | null = null;
       if (snapshot.exists() && snapshot.hasChildren()) {
-        snapshot.forEach(childSnapshot => { // This will iterate once due to limitToLast(1)
+        snapshot.forEach(childSnapshot => { 
           fbData = childSnapshot.val() as FirebaseSensorReading;
         });
       }
@@ -192,7 +192,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       if (!fbData) {
         setCurrentData(null);
         setLastProcessedForAI(null);
-        return; // Exit if no valid fbData extracted
+        return; 
       }
       
       const hasPollutantKeys = ['CO_ppm', 'VOCs_ppm', 'PM2_5_ug_m3'].some(key => key in fbData!);
@@ -218,9 +218,12 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       let shouldUpdateAI = false;
       const previousDataForAI = lastProcessedForAI;
 
-      if (!previousDataForAI) { 
+      if (!previousDataForAI && appData) { // Only update if there's new data and no previous AI processing
           shouldUpdateAI = true;
-      } else if (currentDataRef.current === null && appData !== null) { 
+      }
+      // Temporarily disable significant change trigger for AI update:
+      /*
+      else if (currentDataRef.current === null && appData !== null) { 
           shouldUpdateAI = true;
       } else if (appData !== null && previousDataForAI !== null) { 
           const significantChange = Object.keys(appData).some(key => {
@@ -237,6 +240,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
               shouldUpdateAI = true;
           }
       }
+      */
       
       if (shouldUpdateAI) {
         updateAiData(); 
@@ -248,6 +252,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         setIsLoadingReadings(false);
         initialSensorLoadDoneRef.current = true;
       }
+      console.error("Firebase data error:", error);
       setCurrentData(null);
       setLastProcessedForAI(null);
     };
@@ -258,7 +263,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       off(sensorDataQuery, 'value', handleData);
       initialSensorLoadDoneRef.current = false; 
     };
-  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData]);
+  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData, lastProcessedForAI]); // Added lastProcessedForAI to dependencies
 
   useEffect(() => {
     const thresholdsPathRef = ref(database, USER_THRESHOLDS_PATH);
@@ -275,6 +280,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         }
     };
     const handleThresholdError = (error: Error) => {
+        console.error("Firebase threshold data error:", error);
         const defaultThresholdsInit: UserThresholds = {};
         POLLUTANTS_LIST.forEach(p => {
             defaultThresholdsInit[p.id] = Number.MAX_SAFE_INTEGER;
@@ -339,3 +345,4 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
+
