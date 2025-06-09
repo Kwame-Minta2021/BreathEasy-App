@@ -45,6 +45,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           <SidebarNav />
         </SidebarContent>
         <SidebarFooter className="p-2 space-y-1">
+          {/* NotificationsSidebar provides access to notifications and links to settings */}
+          <NotificationsSidebar />
+          
           <SidebarMenu>
             <SidebarMenuItem>
                 <SidebarMenuButton 
@@ -61,8 +64,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex justify-center group-data-[collapsible=icon]:justify-center">
              <ThemeToggleButton />
           </div>
-
-          <NotificationsSidebar />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
@@ -78,3 +79,4 @@ export function AppLayout({ children }: AppLayoutProps) {
     </SidebarProvider>
   );
 }
+
