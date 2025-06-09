@@ -45,8 +45,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <SidebarNav />
         </SidebarContent>
         <SidebarFooter className="p-2 space-y-1">
-          <NotificationsSidebar />
-          
           <SidebarMenu>
             <SidebarMenuItem>
                 <SidebarMenuButton 
@@ -59,10 +57,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-
-          <div className="flex justify-center group-data-[collapsible=icon]:justify-center mt-1">
+          
+          <div className="flex justify-center group-data-[collapsible=icon]:justify-center">
              <ThemeToggleButton />
           </div>
+
+          <NotificationsSidebar />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
