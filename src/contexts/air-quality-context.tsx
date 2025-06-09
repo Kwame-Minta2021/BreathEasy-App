@@ -13,7 +13,7 @@ import { database } from '@/lib/firebase';
 import { ref, onValue, off, set as firebaseSet, DataSnapshot } from 'firebase/database';
 
 const MAX_HISTORICAL_READINGS = 500;
-const SENSOR_DATA_PATH = 'sensorData'; // Path for sensor data
+const SENSOR_DATA_PATH = 'sensorData'; // Path for sensor data, ensures this matches Firebase structure.
 const USER_THRESHOLDS_PATH = 'user_settings/thresholds'; // Path for user thresholds
 
 interface FirebaseSensorReading {
@@ -23,6 +23,8 @@ interface FirebaseSensorReading {
   PM1_0_ug_m3?: number;
   PM2_5_ug_m3?: number;
   VOCs_ppm?: number; // Firebase sends VOCs in ppm
+  timestamp?: number; // Unix timestamp
+  WiFi_SSID?: string;
   [key: string]: any;
 }
 
@@ -80,7 +82,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
     return {
       co: fbReading.CO_ppm ?? 0,
-      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert ppm to ppb for app consistency
+      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert ppm to ppb
       ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
@@ -137,13 +139,10 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       pm10: data.pm10_0,
     };
     try {
-      // console.log(`[AI UPDATE - ${new Date().toLocaleTimeString()}] Calling fetchAiAnalysis and fetchActionRecommendations with:`, data);
       const [analysisResult, recommendationsResult] = await Promise.all([
         fetchAiAnalysis(analysisInput),
         fetchActionRecommendations(recommendationsInput),
       ]);
-      // console.log(`[AI UPDATE - ${new Date().toLocaleTimeString()}] AI Analysis Result:`, analysisResult.summary);
-      // console.log(`[AI UPDATE - ${new Date().toLocaleTimeString()}] AI Recommendations Result:`, recommendationsResult.recommendations);
       setAiAnalysis(analysisResult.summary);
       setActionRecommendations(recommendationsResult.recommendations);
       setLastProcessedForAI(data);
@@ -160,28 +159,39 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   useEffect(() => {
     const sensorDataRefRealtime = ref(database, SENSOR_DATA_PATH);
     
-    // console.log(`[${new Date().toLocaleTimeString()}] Attaching Firebase listener to ${SENSOR_DATA_PATH}. isLoadingReadings: ${isLoadingReadings}, initialSensorLoadDoneRef: ${initialSensorLoadDoneRef.current}`);
+    // console.log(`[CONTEXT_INIT - ${new Date().toLocaleTimeString()}] Attaching Firebase listener to ${SENSOR_DATA_PATH}.`);
     if (!initialSensorLoadDoneRef.current) {
         setIsLoadingReadings(true);
+        // console.log(`[CONTEXT_INIT - ${new Date().toLocaleTimeString()}] isLoadingReadings set to true.`);
     }
     
     const handleData = (snapshot: DataSnapshot) => {
-      // IMPORTANT: UNCOMMENT THE LOGS BELOW TO DIAGNOSE
-      // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] Firebase snapshot for ${SENSOR_DATA_PATH} received.`);
-      // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] Raw snapshot.val():`, snapshot.val());
+      // !!! --- UNCOMMENT THE LINES BELOW TO DEBUG --- !!!
+      // console.log(`[FB_DATA_RECEIVED - ${new Date().toLocaleTimeString()}] Snapshot received for path: ${SENSOR_DATA_PATH}`);
+      // console.log(`[FB_DATA_RAW - ${new Date().toLocaleTimeString()}] Raw snapshot.val():`, JSON.stringify(snapshot.val(), null, 2));
       
       if (!initialSensorLoadDoneRef.current) {
         setIsLoadingReadings(false); 
         initialSensorLoadDoneRef.current = true;
-        // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] Initial sensor load done. isLoadingReadings set to false.`);
+        // console.log(`[FB_DATA_PROCESSED - ${new Date().toLocaleTimeString()}] Initial sensor load done. isLoadingReadings set to false.`);
       }
 
       const fbData = snapshot.val() as FirebaseSensorReading | null;
-      // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] Parsed fbData for ${SENSOR_DATA_PATH}:`, fbData);
+      // console.log(`[FB_DATA_PARSED - ${new Date().toLocaleTimeString()}] Parsed fbData (snapshot.val()):`, fbData);
 
-      if (fbData) {
+      if (fbData && typeof fbData === 'object' && Object.keys(fbData).length > 0) {
+        // Check if common pollutant keys are present
+        const hasPollutantKeys = ['CO_ppm', 'VOCs_ppm', 'PM2_5_ug_m3'].some(key => key in fbData);
+        if (!hasPollutantKeys) {
+            // console.warn(`[FB_DATA_WARNING - ${new Date().toLocaleTimeString()}] Received data object does not seem to contain expected pollutant keys. Path: ${SENSOR_DATA_PATH}. Data:`, fbData);
+            // This might happen if SENSOR_DATA_PATH points to a parent node containing multiple reading objects
+            // instead of a single reading object.
+             setCurrentData(null); // Or handle as an error/empty state
+             return; // Stop further processing for this snapshot
+        }
+
         const appData = mapFirebaseToAppReading(fbData);
-        // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] Mapped appData for ${SENSOR_DATA_PATH}:`, appData);
+        // console.log(`[FB_DATA_MAPPED - ${new Date().toLocaleTimeString()}] Mapped appData:`, appData);
 
         setCurrentData(appData);
         setHistoricalData(prevHist => {
@@ -194,15 +204,13 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
 
         let shouldUpdateAI = false;
         if (!lastProcessedForAI) {
-            // console.log(`[FB DATA AI CHECK - ${new Date().toLocaleTimeString()}] No lastProcessedForAI, triggering AI update.`);
             shouldUpdateAI = true;
-        } else if (currentData === null && appData !== null) { // Data was null, now it's not
-            // console.log(`[FB DATA AI CHECK - ${new Date().toLocaleTimeString()}] Data was null, now valid. Triggering AI update.`);
+        } else if (currentData === null && appData !== null) {
             shouldUpdateAI = true;
         } else if (appData !== null) {
             const significantChange = Object.keys(appData).some(key => {
                 const currentVal = appData[key as keyof AirQualityReading];
-                const previousVal = lastProcessedForAI?.[key as keyof AirQualityReading]; // Use optional chaining
+                const previousVal = lastProcessedForAI?.[key as keyof AirQualityReading];
                 if (typeof currentVal === 'number' && typeof previousVal === 'number') {
                     if (previousVal === 0 && currentVal !== 0) return true;
                     if (previousVal === 0 && currentVal === 0) return false; 
@@ -211,23 +219,23 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
                 return false;
             });
             if (significantChange) {
-                // console.log(`[FB DATA AI CHECK - ${new Date().toLocaleTimeString()}] Significant change detected, triggering AI update.`);
                 shouldUpdateAI = true;
             }
         }
         
         if (shouldUpdateAI) {
+          // console.log(`[AI_UPDATE_TRIGGER - ${new Date().toLocaleTimeString()}] Triggering AI update.`);
           updateAiData(appData);
         }
       } else {
-        // console.log(`[FB DATA - ${new Date().toLocaleTimeString()}] fbData is null for ${SENSOR_DATA_PATH}. Setting currentData to null.`);
+        // console.log(`[FB_DATA_EMPTY - ${new Date().toLocaleTimeString()}] fbData is null or empty for path: ${SENSOR_DATA_PATH}. Setting currentData to null.`);
         setCurrentData(null);
         setLastProcessedForAI(null); 
       }
     };
 
     const handleError = (error: Error) => {
-      console.error(`Firebase ${SENSOR_DATA_PATH} data read failed:`, error);
+      console.error(`[FB_ERROR - ${new Date().toLocaleTimeString()}] Firebase data read failed for path ${SENSOR_DATA_PATH}:`, error);
       if (!initialSensorLoadDoneRef.current) {
         setIsLoadingReadings(false);
         initialSensorLoadDoneRef.current = true;
@@ -239,11 +247,11 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     onValue(sensorDataRefRealtime, handleData, handleError);
 
     return () => {
-      // console.log(`[${new Date().toLocaleTimeString()}] Detaching Firebase listener from ${SENSOR_DATA_PATH}`);
+      // console.log(`[CONTEXT_CLEANUP - ${new Date().toLocaleTimeString()}] Detaching Firebase listener from ${SENSOR_DATA_PATH}`);
       off(sensorDataRefRealtime, 'value', handleData);
-      initialSensorLoadDoneRef.current = false; // Reset if context is ever re-mounted
+      initialSensorLoadDoneRef.current = false;
     };
-  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData]);
+  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData, currentData]); // Added currentData to dependencies of sensor listener
 
 
   useEffect(() => {
@@ -279,7 +287,6 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (currentData && !isLoadingAnalysisRef.current && !isLoadingRecommendationsRef.current) {
-        // console.log(`[AI UPDATE - ${new Date().toLocaleTimeString()}] Periodic interval triggered for AI update.`);
         updateAiData(currentData);
       }
     }, POLLING_INTERVAL_MS);
@@ -327,3 +334,5 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
+
+    
