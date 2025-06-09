@@ -5,15 +5,21 @@ import { useAirQuality } from '@/contexts/air-quality-context';
 import { HistoricalDataChart } from '@/components/dashboard/historical-data-chart';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, LineChartIcon, ListChecks } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart, LineChartIcon, ListChecks, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Pollutant } from '@/types';
 import { POLLUTANTS_LIST, INITIAL_POLLUTANTS_FOR_CHART } from '@/lib/constants';
-import { ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts'; // Renamed to RechartsTooltip to avoid conflict
-import { ChartTooltipContent, ChartLegend, ChartLegendContent, ChartContainer } from '@/components/ui/chart'; // Shadcn chart components
+import { ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import { ChartTooltipContent, ChartContainer } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import { format } from 'date-fns';
-
 
 const pollutantDetailsForBarChart: Record<Pollutant['id'], { name: string; color: string }> = {
   co: { name: 'CO', color: 'hsl(var(--chart-1))' },
@@ -21,13 +27,13 @@ const pollutantDetailsForBarChart: Record<Pollutant['id'], { name: string; color
   ch4Lpg: { name: 'CH4/LPG', color: 'hsl(var(--chart-3))' },
   pm1_0: { name: 'PM1.0', color: 'hsl(var(--chart-4))' },
   pm2_5: { name: 'PM2.5', color: 'hsl(var(--chart-5))' },
-  pm10_0: { name: 'PM10', color: 'hsl(var(--chart-1))' },
+  pm10_0: { name: 'PM10', color: 'hsl(var(--chart-1))' }, // Re-use color for the 6th item
 };
 
 
 function WhoGuidelinesPanel() {
   return (
-    <Card className="shadow-md">
+    <Card className="shadow-md mt-6">
       <CardHeader>
         <CardTitle className="font-headline text-lg flex items-center gap-2"><ListChecks className="text-primary"/> WHO AQ Guidelines</CardTitle>
         <CardDescription>Reference values from the World Health Organization.</CardDescription>
@@ -52,7 +58,20 @@ export default function VisualizationsPage() {
   const { historicalData, isLoadingReadings, currentData } = useAirQuality();
   const [selectedPollutantsForLine, setSelectedPollutantsForLine] = useState<Array<Pollutant['id']>>(INITIAL_POLLUTANTS_FOR_CHART);
 
-  // For Bar chart, we'll use current data
+  const handlePollutantSelectionChange = (pollutantId: Pollutant['id']) => {
+    setSelectedPollutantsForLine(prevSelected => {
+      const isSelected = prevSelected.includes(pollutantId);
+      if (isSelected) {
+        return prevSelected.filter(id => id !== pollutantId);
+      } else {
+        if (prevSelected.length < 5) {
+          return [...prevSelected, pollutantId];
+        }
+        return prevSelected; // Max 5 pollutants
+      }
+    });
+  };
+
   const barChartData = currentData ? POLLUTANTS_LIST.map(p => ({
     name: p.name,
     value: currentData[p.id],
@@ -61,10 +80,13 @@ export default function VisualizationsPage() {
   })) : [];
 
   const barChartConfig = POLLUTANTS_LIST.reduce((config, p) => {
-    config[p.name] = {
-      label: p.name,
-      color: pollutantDetailsForBarChart[p.id]?.color || 'hsl(var(--chart-1))',
-    };
+    const detail = pollutantDetailsForBarChart[p.id];
+    if (detail) {
+      config[p.name] = {
+        label: p.name,
+        color: detail.color,
+      };
+    }
     return config;
   }, {} as ChartConfig);
 
@@ -81,10 +103,33 @@ export default function VisualizationsPage() {
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle>Pollutant Trends Over Time</CardTitle>
-              <CardDescription>Select up to 5 pollutants to see their trends from the last 60 readings.</CardDescription>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <CardDescription className="flex-grow">Select up to 5 pollutants to see their trends from the last 60 readings.</CardDescription>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="ml-auto shrink-0">
+                      Select Pollutants ({selectedPollutantsForLine.length}/5)
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuLabel>Display Pollutants</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {POLLUTANTS_LIST.map((pollutant) => (
+                      <DropdownMenuCheckboxItem
+                        key={pollutant.id}
+                        checked={selectedPollutantsForLine.includes(pollutant.id)}
+                        onCheckedChange={() => handlePollutantSelectionChange(pollutant.id)}
+                        disabled={selectedPollutantsForLine.length >= 5 && !selectedPollutantsForLine.includes(pollutant.id)}
+                      >
+                        {pollutant.name}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* TODO: Implement multi-select for pollutants */}
               <HistoricalDataChart
                 data={historicalData}
                 selectedPollutants={selectedPollutantsForLine}
@@ -104,13 +149,13 @@ export default function VisualizationsPage() {
                 <div className="h-[350px] w-full flex items-center justify-center">
                     <p className="text-muted-foreground">Loading chart data...</p>
                 </div>
-            ) : (
+            ) : barChartData.length > 0 ? (
               <ChartContainer config={barChartConfig} className="h-[350px] w-full">
                 <ResponsiveContainer>
-                  <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <BarChart data={barChartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
                     <CartesianGrid horizontal={false} strokeDasharray="3 3" />
-                    <XAxis type="number" stroke="hsl(var(--foreground))"/>
-                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} stroke="hsl(var(--foreground))" width={100} />
+                    <XAxis type="number" stroke="hsl(var(--foreground))" domain={['auto', 'auto']}/>
+                    <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} stroke="hsl(var(--foreground))" width={80} interval={0} />
                     <RechartsTooltip
                       cursor={{ fill: 'hsl(var(--muted))' }}
                       content={({ active, payload }) => {
@@ -120,10 +165,11 @@ export default function VisualizationsPage() {
                             <ChartTooltipContent
                               className="w-[180px]"
                               label={data.name}
-                              formatter={(value) => (
+                              itemSorter={() => 0} // Keep original order
+                              formatter={(value, name, item, index, p) => (
                                 <div className="flex items-center gap-2">
-                                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: data.fill }} />
-                                  {typeof value === 'number' ? value.toFixed(1) : value} {data.unit}
+                                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p[index].payload.fill }} />
+                                  {typeof value === 'number' ? value.toFixed(1) : value} {p[index].payload.unit}
                                 </div>
                               )}
                             />
@@ -136,6 +182,10 @@ export default function VisualizationsPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
+            ) : (
+                 <div className="h-[350px] w-full flex items-center justify-center">
+                    <p className="text-muted-foreground">No current data available for bar chart.</p>
+                 </div>
             )}
             </CardContent>
           </Card>
@@ -145,3 +195,4 @@ export default function VisualizationsPage() {
     </div>
   );
 }
+
