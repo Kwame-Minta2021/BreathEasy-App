@@ -54,7 +54,7 @@ export async function fetch24hForecast(data: Forecast24hInput): Promise<Forecast
     return await forecast24h(data);
   } catch (error) {
     console.error("Error fetching 24h forecast:", error);
-    return { prediction: "Failed to load 24-hour forecast.", confidence: "Low" };
+    return { prediction: "24-hour forecast is currently unavailable. Please try refreshing.", confidence: "Low" };
   }
 }
 
@@ -63,7 +63,7 @@ export async function fetchWeeklyImpact(data: ForecastWeeklyInput): Promise<Fore
     return await forecastWeekly(data);
   } catch (error) {
     console.error("Error fetching weekly impact:", error);
-    return { summary: "Failed to load weekly impact analysis." };
+    return { summary: "Weekly impact analysis is currently unavailable. Please try refreshing." };
   }
 }
 
@@ -72,7 +72,7 @@ export async function fetchHealthRisks(data: HealthRisksInput): Promise<HealthRi
     return await getHealthRisks(data);
   } catch (error) {
     console.error("Error fetching health risks:", error);
-    return { riskLevel: "Unknown", symptoms: [], advice: ["Failed to load health advice."] };
+    return { riskLevel: "Unknown", symptoms: [], advice: ["Health risk information is currently unavailable. Please try refreshing."] };
   }
 }
 
@@ -84,3 +84,4 @@ export async function reportToControlRoom(data: ReportToControlRoomInput): Promi
         return { confirmationMessage: "Failed to send report.", smsContent: `Error: ${data.message}`};
     }
 }
+
