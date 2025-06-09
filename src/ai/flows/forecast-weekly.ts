@@ -49,7 +49,8 @@ const prompt = ai.definePrompt({
   prompt: `Based on historical air quality data (number of readings: {{{historicalData.length}}}), analyze the trends and predict the overall air quality and potential health outcomes for the coming week.
   {{#if detailLevel}}Provide a more detailed analysis due to detailLevel: {{{detailLevel}}}.{{/if}}
   Identify any recurring patterns or expected significant changes.
-  List potential symptoms if adverse conditions are expected. Provide at least one symptom if possible, otherwise an empty array.`,
+  List potential symptoms if adverse conditions are expected. Provide at least one symptom if possible, otherwise an empty array.
+  Please ensure your output is structured according to the defined schema, particularly for summary and potentialSymptoms.`,
 });
 
 const forecastWeeklyFlow = ai.defineFlow(
@@ -62,7 +63,7 @@ const forecastWeeklyFlow = ai.defineFlow(
     try {
       const {output} = await prompt(input);
       if (!output) {
-          console.warn('[Weekly Forecast Flow] Prompt returned null or undefined output. This could be due to the model not adhering to the output schema or an empty response.');
+          console.warn('[Weekly Forecast Flow] Prompt returned null or undefined output. This could be due to the model not adhering to the output schema or an empty response. Input received:', JSON.stringify(input, null, 2));
           return {
             summary: "The AI could not generate a specific weekly forecast based on the current data. Please ensure sufficient historical data is available for meaningful trend analysis.",
             potentialSymptoms: ["Monitor for any unusual symptoms if air quality changes significantly."]
@@ -79,12 +80,18 @@ const forecastWeeklyFlow = ai.defineFlow(
           output.potentialSymptoms.push("With limited historical data, detailed symptom prediction is challenging. General advice is to be aware of changes if air quality deteriorates.");
       }
       return output;
-    } catch (error) {
-      console.error("[Weekly Forecast Flow] Error calling prompt or processing its output:", error);
+    } catch (error: any) {
+      console.error("[Weekly Forecast Flow] Error calling prompt or processing its output. Input:", JSON.stringify(input, null, 2));
+      console.error("[Weekly Forecast Flow] Error Message:", error.message);
+      console.error("[Weekly Forecast Flow] Error Stack:", error.stack);
+      if (error.cause) {
+        console.error("[Weekly Forecast Flow] Error Cause:", error.cause);
+      }
       return {
-        summary: "The AI encountered an issue while trying to generate the weekly forecast. This might be a temporary problem with the AI service or data processing. Please try again later.",
+        summary: "The AI encountered an issue while trying to generate the weekly forecast. This might be a temporary problem with the AI service or data processing. Please check server logs and try again later.",
         potentialSymptoms: ["General advice: Stay informed about local air quality reports and consult health professionals if you experience symptoms."]
       };
     }
   }
 );
+
