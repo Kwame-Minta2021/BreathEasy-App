@@ -17,13 +17,23 @@ import { getHealthRisks } from '@/ai/flows/health-risks';
 import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
 import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
 
+function logDetailedError(actionName: string, error: any) {
+  console.error(
+    `Error in ${actionName}:`,
+    error?.message || 'Unknown error message',
+    error?.stack || 'No stack trace available',
+    error?.status ? `Status: ${error.status}` : '',
+    error?.errorDetails ? `Details: ${JSON.stringify(error.errorDetails)}` : '',
+    error?.cause ? `Cause: ${JSON.stringify(error.cause)}` : ''
+  );
+}
 
 export async function fetchAiAnalysis(data: AirQualityAnalysisInput): Promise<AirQualityAnalysisOutput> {
   try {
     const result = await analyzeAirQuality(data);
     return result;
-  } catch (error) {
-    console.error("Error fetching AI analysis:", error);
+  } catch (error: any) {
+    logDetailedError("fetchAiAnalysis", error);
     return { summary: "Could not retrieve AI analysis at this time." };
   }
 }
@@ -32,8 +42,8 @@ export async function fetchActionRecommendations(data: ActionRecommendationsInpu
   try {
     const result = await getActionRecommendations(data);
     return result;
-  } catch (error) {
-    console.error("Error fetching action recommendations:", error);
+  } catch (error: any) {
+    logDetailedError("fetchActionRecommendations", error);
     return { recommendations: ["Could not retrieve recommendations at this time."] };
   }
 }
@@ -42,8 +52,8 @@ export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQuali
   try {
     const result = await airQualityChatbot(data);
     return result;
-  } catch (error) {
-    console.error("Error interacting with chatbot:", error);
+  } catch (error: any) {
+    logDetailedError("askChatbot", error);
     return { answer: "The chatbot is currently unavailable. Please try again later." };
   }
 }
@@ -51,8 +61,8 @@ export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQuali
 export async function fetch24hForecast(data: Forecast24hInput): Promise<Forecast24hOutput> {
   try {
     return await forecast24h(data);
-  } catch (error) {
-    console.error("Error fetching 24h forecast:", error);
+  } catch (error: any) {
+    logDetailedError("fetch24hForecast", error);
     return { prediction: "24-hour forecast is currently unavailable. Please try refreshing.", confidence: "Low" };
   }
 }
@@ -60,8 +70,8 @@ export async function fetch24hForecast(data: Forecast24hInput): Promise<Forecast
 export async function fetchWeeklyImpact(data: ForecastWeeklyInput): Promise<ForecastWeeklyOutput> {
   try {
     return await forecastWeekly(data);
-  } catch (error) {
-    console.error("Error fetching weekly impact:", error);
+  } catch (error: any) {
+    logDetailedError("fetchWeeklyImpact", error);
     return {
       summary: "Weekly impact analysis is currently unavailable. Please try refreshing.",
       potentialSymptoms: ["Detailed symptom outlook is currently unavailable."]
@@ -72,18 +82,17 @@ export async function fetchWeeklyImpact(data: ForecastWeeklyInput): Promise<Fore
 export async function fetchHealthRisks(data: HealthRisksInput): Promise<HealthRisksOutput> {
   try {
     return await getHealthRisks(data);
-  } catch (error) {
-    console.error("Error fetching health risks:", error);
+  } catch (error: any) {
+    logDetailedError("fetchHealthRisks", error);
     return { riskLevel: "Unknown", symptoms: [], advice: ["Health risk information is currently unavailable. Please try refreshing."] };
   }
 }
 
-// Ensure ReportToControlRoomInput type is consistent with the flow's definition
 export async function reportToControlRoom(data: ReportToControlRoomInput): Promise<ReportToControlRoomOutput> {
     try {
         return await reportToControlRoomFlow(data);
-    } catch (error) {
-        console.error("Error reporting to control room:", error);
+    } catch (error: any) {
+        logDetailedError("reportToControlRoom", error);
         let smsContentOnError = `User Message: ${data.message}`;
         if (data.currentReadings) {
             smsContentOnError += ` | Readings: CO ${data.currentReadings.co}, PM2.5 ${data.currentReadings.pm2_5}`;
@@ -93,7 +102,7 @@ export async function reportToControlRoom(data: ReportToControlRoomInput): Promi
         }
         return { 
             confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`, 
-            smsContent: smsContentOnError, // Fallback SMS content
+            smsContent: smsContentOnError,
             messageSid: undefined
         };
     }
