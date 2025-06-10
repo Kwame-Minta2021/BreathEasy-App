@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -89,8 +90,8 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <Separator />
-        <ScrollArea className="flex-grow p-6" ref={scrollAreaRef}>
-          <div className="space-y-4">
+        <ScrollArea className="flex-grow" ref={scrollAreaRef}> {/* Removed p-6 */}
+          <div className="space-y-4 p-6"> {/* Added p-6 here */}
             {messages.map((message) => (
               <div
                 key={message.id}
