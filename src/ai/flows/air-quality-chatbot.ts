@@ -32,15 +32,21 @@ const airQualityChatbotFlow = ai.defineFlow(
     outputSchema: AirQualityChatbotOutputSchema,
   },
   async (input) => {
-    // Directly use ai.generate with the default model configured in ai/genkit.ts
-    // The prompt now directly incorporates the user's question.
     const {text} = await ai.generate({
-      prompt: `You are an AI chatbot specializing in air quality information. Please answer the following question concisely and helpfully: "${input.question}"`,
+      prompt: `You are an AI chatbot for an air quality monitoring application.
+Your role is to answer questions ONLY about the following topics:
+1. Information available on the application's dashboard (e.g., current pollutant levels, historical trends shown on charts).
+2. Health advice related to the air quality data presented.
+3. Recommendations for actions to take based on the air quality data.
+
+If the question is outside these topics, politely state that you can only answer questions related to the air quality application's data and features.
+Do NOT use Markdown formatting in your responses. Provide answers in plain text.
+
+User's question: "${input.question}"`,
     });
     
     if (!text) {
-      // This case handles scenarios where the model might return an empty response.
-      return { answer: "I couldn't generate a response for that. Could you please try rephrasing your question?" };
+      return { answer: "I couldn't generate a response for that. Could you please try rephrasing your question or ensure it's related to the air quality dashboard, health advice, or recommendations?" };
     }
     
     return { answer: text };
