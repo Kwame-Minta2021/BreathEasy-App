@@ -1,4 +1,4 @@
-# Firebase Studio
+# BreathEasy
 
 ## Air Quality Monitoring and Analysis Platform
 
