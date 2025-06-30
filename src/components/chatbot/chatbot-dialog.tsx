@@ -79,7 +79,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] md:sm:max-w-[550px] p-0 flex flex-col max-h-[80vh]">
+      <DialogContent className="sm:max-w-[425px] md:sm:max-w-[550px] p-0 grid grid-rows-[auto_1px_1fr_1px_auto] max-h-[80vh]">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="flex items-center gap-2 font-headline">
             <Bot className="h-6 w-6 text-primary" />
@@ -90,7 +90,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <Separator />
-        <ScrollArea className="flex-grow min-h-0" ref={scrollAreaRef}>
+        <ScrollArea className="min-h-0" ref={scrollAreaRef}>
           <div className="space-y-4 p-6">
             {messages.map((message) => (
               <div
