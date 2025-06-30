@@ -755,7 +755,6 @@ export {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarProvider, // Exporting the simplified provider
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
