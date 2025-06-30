@@ -90,8 +90,8 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <Separator />
-        <ScrollArea className="flex-grow" ref={scrollAreaRef}> {/* Removed p-6 */}
-          <div className="space-y-4 p-6"> {/* Added p-6 here */}
+        <ScrollArea className="flex-grow min-h-0" ref={scrollAreaRef}>
+          <div className="space-y-4 p-6">
             {messages.map((message) => (
               <div
                 key={message.id}
