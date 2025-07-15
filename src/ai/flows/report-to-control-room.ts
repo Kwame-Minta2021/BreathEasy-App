@@ -62,22 +62,6 @@ const reportToControlRoomFlow = ai.defineFlow(
         smsContent: smsContent,
       };
     }
-    
-    if (accountSid.startsWith('AC') && accountSid.endsWith('_YOUR_SID_HERE')) {
-       console.warn("Twilio Account SID seems to be a placeholder. SMS not sent.");
-       return {
-        confirmationMessage: 'SMS not sent: Twilio Account SID is a placeholder. Please configure it in your .env file.',
-        smsContent: smsContent,
-      };
-    }
-     if (authToken.endsWith('_YOUR_TOKEN_HERE')) {
-       console.warn("Twilio Auth Token seems to be a placeholder. SMS not sent.");
-       return {
-        confirmationMessage: 'SMS not sent: Twilio Auth Token is a placeholder. Please configure it in your .env file.',
-        smsContent: smsContent,
-      };
-    }
-
 
     try {
       const client = Twilio(accountSid, authToken, { accountSid: accountSid });
@@ -102,3 +86,4 @@ const reportToControlRoomFlow = ai.defineFlow(
     }
   }
 );
+
