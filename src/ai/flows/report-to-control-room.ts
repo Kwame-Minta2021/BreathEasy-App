@@ -12,7 +12,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import Twilio from 'twilio';
-import { getActionRecommendations } from './action-recommendations';
 
 const AirQualityReadingSchemaForSms = z.object({
   co: z.number().describe('Carbon Monoxide level in ppm'),
@@ -40,36 +39,6 @@ export async function reportToControlRoom(input: ReportToControlRoomInput): Prom
   return reportToControlRoomFlow(input);
 }
 
-// Schema for the prompt that formats the SMS, including the recommendations
-const ReportFormattingPromptInputSchema = ReportToControlRoomInputSchema.extend({
-  recommendations: z.array(z.string()).optional().describe("Optional list of AI-generated action recommendations."),
-});
-
-
-// This prompt helps format the SMS.
-const reportFormattingPrompt = ai.definePrompt({
-  name: 'reportFormattingPrompt',
-  input: {schema: ReportFormattingPromptInputSchema},
-  output: {schema: z.object({ formattedSms: z.string() }) },
-  prompt: `Format a concise but detailed SMS alert for a control room. The alert must be urgent and actionable.
-
-Base Information:
-- Report Reason: "{{message}}"
-{{#if currentReadings}}
-- Current Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³, VOCs {{currentReadings.vocs}}ppb.
-{{/if}}
-{{#if recommendations}}
-- Recommended Actions:
-{{#each recommendations}}
-  - {{this}}
-{{/each}}
-{{/if}}
-
-Combine this information into a single SMS. Start with "URGENT AIR QUALITY ALERT." Include the most critical details. Ensure the recommended actions are clearly listed.
-Example: "URGENT AIR QUALITY ALERT. High sensor readings reported. Readings: CO 10.1ppm, PM2.5 55.2µg/m³. Recommended Actions: - Increase ventilation immediately. - Advise occupants to move to a safer area. - Investigate potential source of CO."
-
-Formatted SMS:`,
-});
 
 const reportToControlRoomFlow = ai.defineFlow(
   {
@@ -78,46 +47,8 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async (input) => {
-    // Get AI Recommendations if we have readings
-    let recommendations: string[] | undefined = undefined;
-    if (input.currentReadings) {
-        try {
-            const recsOutput = await getActionRecommendations({
-                co: input.currentReadings.co,
-                vocs: input.currentReadings.vocs,
-                ch4Lpg: input.currentReadings.ch4Lpg,
-                pm1_0: input.currentReadings.pm1_0,
-                pm2_5: input.currentReadings.pm2_5,
-                pm10: input.currentReadings.pm10_0,
-            });
-            recommendations = recsOutput.recommendations;
-        } catch(e) {
-            console.error("Failed to get action recommendations for SMS.", e);
-            recommendations = ["Could not generate AI actions. Investigate source immediately."];
-        }
-    }
-
-    const promptInputData: z.infer<typeof ReportFormattingPromptInputSchema> = {
-        ...input,
-        recommendations,
-    };
-
-    const {output: promptOutput} = await reportFormattingPrompt(promptInputData);
     
-    let smsContent = promptOutput?.formattedSms;
-    if (!smsContent) {
-        console.warn("SMS content generation by prompt failed. Using fallback.");
-        let baseMessage = `URGENT AIR QUALITY ALERT: ${input.message}`;
-        if (input.currentReadings) {
-            baseMessage += `. Readings: CO ${input.currentReadings.co.toFixed(1)}ppm, PM2.5 ${input.currentReadings.pm2_5.toFixed(1)}µg/m³`;
-        }
-        if(recommendations && recommendations.length > 0) {
-            baseMessage += `. Actions: ${recommendations.join(', ')}`;
-        }
-        baseMessage += ". Investigate immediately.";
-        smsContent = baseMessage;
-    }
-
+    const smsContent = "hi";
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
