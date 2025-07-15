@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Formats and sends an SMS notification to a control room using Twilio,
- * optionally including current air quality readings, AI-recommended actions, and a Google Maps link to the location.
+ * including current air quality readings and AI-recommended actions.
  *
  * - reportToControlRoom - A function that formats a message and sends it via SMS.
  * - ReportToControlRoomInput - The input type for the function.
@@ -26,8 +26,6 @@ const AirQualityReadingSchemaForSms = z.object({
 const ReportToControlRoomInputSchema = z.object({
   message: z.string().describe("The core message or reason for the report."),
   currentReadings: AirQualityReadingSchemaForSms,
-  latitude: z.number().optional().describe("Optional latitude of the event."),
-  longitude: z.number().optional().describe("Optional longitude of the event.")
 });
 export type ReportToControlRoomInput = z.infer<typeof ReportToControlRoomInputSchema>;
 
@@ -42,9 +40,8 @@ export async function reportToControlRoom(input: ReportToControlRoomInput): Prom
   return reportToControlRoomFlow(input);
 }
 
-// Schema for the prompt that formats the SMS, including the constructed location link and recommendations
+// Schema for the prompt that formats the SMS, including the recommendations
 const ReportFormattingPromptInputSchema = ReportToControlRoomInputSchema.extend({
-  locationLink: z.string().optional().describe("An optional Google Maps link for the location of the report."),
   recommendations: z.array(z.string()).optional().describe("Optional list of AI-generated action recommendations."),
 });
 
@@ -61,9 +58,6 @@ Base Information:
 {{#if currentReadings}}
 - Current Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³, VOCs {{currentReadings.vocs}}ppb.
 {{/if}}
-{{#if locationLink}}
-- Location: {{{locationLink}}}
-{{/if}}
 {{#if recommendations}}
 - Recommended Actions:
 {{#each recommendations}}
@@ -72,7 +66,7 @@ Base Information:
 {{/if}}
 
 Combine this information into a single SMS. Start with "URGENT AIR QUALITY ALERT." Include the most critical details. Ensure the recommended actions are clearly listed.
-Example: "URGENT AIR QUALITY ALERT. Location: https://maps.google.com/... Readings: CO 10.1ppm, PM2.5 55.2µg/m³. Recommended Actions: - Increase ventilation immediately. - Advise occupants to move to a safer area. - Investigate potential source of CO."
+Example: "URGENT AIR QUALITY ALERT. High sensor readings reported. Readings: CO 10.1ppm, PM2.5 55.2µg/m³. Recommended Actions: - Increase ventilation immediately. - Advise occupants to move to a safer area. - Investigate potential source of CO."
 
 Formatted SMS:`,
 });
@@ -84,12 +78,6 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async (input) => {
-    let locationLink: string | undefined = undefined;
-    
-    if (input.latitude && input.longitude) {
-        locationLink = `https://www.google.com/maps/search/?api=1&query=${input.latitude},${input.longitude}`;
-    }
-    
     // Get AI Recommendations if we have readings
     let recommendations: string[] | undefined = undefined;
     if (input.currentReadings) {
@@ -111,7 +99,6 @@ const reportToControlRoomFlow = ai.defineFlow(
 
     const promptInputData: z.infer<typeof ReportFormattingPromptInputSchema> = {
         ...input,
-        locationLink,
         recommendations,
     };
 
@@ -123,9 +110,6 @@ const reportToControlRoomFlow = ai.defineFlow(
         let baseMessage = `URGENT AIR QUALITY ALERT: ${input.message}`;
         if (input.currentReadings) {
             baseMessage += `. Readings: CO ${input.currentReadings.co.toFixed(1)}ppm, PM2.5 ${input.currentReadings.pm2_5.toFixed(1)}µg/m³`;
-        }
-        if (locationLink) {
-            baseMessage += `. Location: ${locationLink}`;
         }
         if(recommendations && recommendations.length > 0) {
             baseMessage += `. Actions: ${recommendations.join(', ')}`;

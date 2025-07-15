@@ -97,9 +97,6 @@ export async function reportToControlRoom(data: ReportToControlRoomInput): Promi
         if (data.currentReadings) {
             smsContentOnError += ` | Readings: CO ${data.currentReadings.co}, PM2.5 ${data.currentReadings.pm2_5}`;
         }
-        if (data.latitude && data.longitude) {
-            smsContentOnError += ` | Location: Lat ${data.latitude.toFixed(4)}, Lon ${data.longitude.toFixed(4)}`;
-        }
         return { 
             confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`, 
             smsContent: smsContentOnError,
