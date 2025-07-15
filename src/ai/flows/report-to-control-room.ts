@@ -85,17 +85,9 @@ const reportToControlRoomFlow = ai.defineFlow(
   },
   async (input) => {
     let locationLink: string | undefined = undefined;
-    const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
-
+    
     if (input.latitude && input.longitude) {
-      if (googleMapsApiKey && googleMapsApiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
-        locationLink = `https://www.google.com/maps/search/?api=1&query=${input.latitude},${input.longitude}&key=${googleMapsApiKey}`;
-      } else {
         locationLink = `https://www.google.com/maps/search/?api=1&query=${input.latitude},${input.longitude}`;
-        if (!googleMapsApiKey || googleMapsApiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
-          console.warn("GOOGLE_MAPS_API_KEY is not set or is a placeholder. Maps link will not include API key.");
-        }
-      }
     }
     
     // Get AI Recommendations if we have readings
@@ -173,7 +165,7 @@ const reportToControlRoomFlow = ai.defineFlow(
 
 
     try {
-      const client = Twilio(accountSid, authToken);
+      const client = Twilio(accountSid, authToken, { accountSid: accountSid });
       const message = await client.messages.create({
         body: smsContent,
         from: twilioPhoneNumber,
