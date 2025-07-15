@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Formats and sends an SMS notification to a control room using Twilio,
- * optionally including current air quality readings and a Google Maps link to the location.
+ * optionally including current air quality readings, AI-recommended actions, and a Google Maps link to the location.
  *
  * - reportToControlRoom - A function that formats a message and sends it via SMS.
  * - ReportToControlRoomInput - The input type for the function.
@@ -12,6 +12,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import Twilio from 'twilio';
+import { getActionRecommendations } from './action-recommendations';
 
 const AirQualityReadingSchemaForSms = z.object({
   co: z.number().describe('Carbon Monoxide level in ppm'),
@@ -41,9 +42,10 @@ export async function reportToControlRoom(input: ReportToControlRoomInput): Prom
   return reportToControlRoomFlow(input);
 }
 
-// Schema for the prompt that formats the SMS, including the constructed location link
+// Schema for the prompt that formats the SMS, including the constructed location link and recommendations
 const ReportFormattingPromptInputSchema = ReportToControlRoomInputSchema.extend({
-  locationLink: z.string().optional().describe("An optional Google Maps link for the location of the report.")
+  locationLink: z.string().optional().describe("An optional Google Maps link for the location of the report."),
+  recommendations: z.array(z.string()).optional().describe("Optional list of AI-generated action recommendations."),
 });
 
 
@@ -52,25 +54,26 @@ const reportFormattingPrompt = ai.definePrompt({
   name: 'reportFormattingPrompt',
   input: {schema: ReportFormattingPromptInputSchema},
   output: {schema: z.object({ formattedSms: z.string() }) },
-  prompt: `Format a concise SMS alert for a control room based on the following information:
-User Message: "{{message}}"
+  prompt: `Format a concise but detailed SMS alert for a control room. The alert must be urgent and actionable.
+
+Base Information:
+- Report Reason: "{{message}}"
 {{#if currentReadings}}
-Current Air Quality Readings:
-- CO: {{currentReadings.co}} ppm
-- VOCs: {{currentReadings.vocs}} ppb
-- CH4/LPG: {{currentReadings.ch4Lpg}} ppm
-- PM1.0: {{currentReadings.pm1_0}} µg/m³
-- PM2.5: {{currentReadings.pm2_5}} µg/m³
-- PM10: {{currentReadings.pm10_0}} µg/m³
+- Current Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³, VOCs {{currentReadings.vocs}}ppb.
 {{/if}}
 {{#if locationLink}}
-Location: {{{locationLink}}}
+- Location: {{{locationLink}}}
 {{/if}}
-The SMS should be clear, urgent, and include key details. Ensure "Investigate" or similar call to action is present.
-Example SMS with readings & location: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Location: {{{locationLink}}}. Investigate."
-Example SMS no readings, with location: "URGENT: Report. User reports: '{{message}}'. Location: {{{locationLink}}}. Investigate."
-Example SMS with readings, no location: "URGENT: Air quality alert. User reports: '{{message}}'. Readings: CO {{currentReadings.co}}ppm, PM2.5 {{currentReadings.pm2_5}}µg/m³. Investigate."
-Example SMS only message, no location: "URGENT: Report. User reports: '{{message}}'. Investigate."
+{{#if recommendations}}
+- Recommended Actions:
+{{#each recommendations}}
+  - {{this}}
+{{/each}}
+{{/if}}
+
+Combine this information into a single SMS. Start with "URGENT AIR QUALITY ALERT." Include the most critical details. Ensure the recommended actions are clearly listed.
+Example: "URGENT AIR QUALITY ALERT. Location: https://maps.google.com/... Readings: CO 10.1ppm, PM2.5 55.2µg/m³. Recommended Actions: - Increase ventilation immediately. - Advise occupants to move to a safer area. - Investigate potential source of CO."
+
 Formatted SMS:`,
 });
 
@@ -95,9 +98,29 @@ const reportToControlRoomFlow = ai.defineFlow(
       }
     }
     
+    // Get AI Recommendations if we have readings
+    let recommendations: string[] | undefined = undefined;
+    if (input.currentReadings) {
+        try {
+            const recsOutput = await getActionRecommendations({
+                co: input.currentReadings.co,
+                vocs: input.currentReadings.vocs,
+                ch4Lpg: input.currentReadings.ch4Lpg,
+                pm1_0: input.currentReadings.pm1_0,
+                pm2_5: input.currentReadings.pm2_5,
+                pm10: input.currentReadings.pm10_0,
+            });
+            recommendations = recsOutput.recommendations;
+        } catch(e) {
+            console.error("Failed to get action recommendations for SMS.", e);
+            recommendations = ["Could not generate AI actions. Investigate source immediately."];
+        }
+    }
+
     const promptInputData: z.infer<typeof ReportFormattingPromptInputSchema> = {
         ...input,
         locationLink,
+        recommendations,
     };
 
     const {output: promptOutput} = await reportFormattingPrompt(promptInputData);
@@ -105,14 +128,17 @@ const reportToControlRoomFlow = ai.defineFlow(
     let smsContent = promptOutput?.formattedSms;
     if (!smsContent) {
         console.warn("SMS content generation by prompt failed. Using fallback.");
-        let baseMessage = `URGENT: ${input.message}`;
+        let baseMessage = `URGENT AIR QUALITY ALERT: ${input.message}`;
         if (input.currentReadings) {
-            baseMessage += `. Readings: CO ${input.currentReadings.co.toFixed(1)}ppm, VOCs ${input.currentReadings.vocs.toFixed(1)}ppb, CH4/LPG ${input.currentReadings.ch4Lpg.toFixed(1)}ppm, PM1.0 ${input.currentReadings.pm1_0.toFixed(1)}µg/m³, PM2.5 ${input.currentReadings.pm2_5.toFixed(1)}µg/m³, PM10 ${input.currentReadings.pm10_0.toFixed(1)}µg/m³`;
+            baseMessage += `. Readings: CO ${input.currentReadings.co.toFixed(1)}ppm, PM2.5 ${input.currentReadings.pm2_5.toFixed(1)}µg/m³`;
         }
         if (locationLink) {
             baseMessage += `. Location: ${locationLink}`;
         }
-        baseMessage += ". Investigate.";
+        if(recommendations && recommendations.length > 0) {
+            baseMessage += `. Actions: ${recommendations.join(', ')}`;
+        }
+        baseMessage += ". Investigate immediately.";
         smsContent = baseMessage;
     }
 
