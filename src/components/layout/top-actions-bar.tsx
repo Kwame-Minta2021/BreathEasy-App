@@ -6,30 +6,58 @@ import { Button } from '@/components/ui/button';
 import { PhoneForwarded, BarChartBig, Loader2 as ReportLoader } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { reportToControlRoom } from '@/lib/actions';
+import { reportToControlRoom, fetchHealthRisks, fetchActionRecommendations } from '@/lib/actions';
 import { useAirQuality } from '@/contexts/air-quality-context';
 
 export function TopActionsBar() {
   const router = useRouter();
   const { toast } = useToast();
-  const { currentData } = useAirQuality();
+  const { currentData, isLoadingReadings } = useAirQuality();
   const [isReporting, setIsReporting] = React.useState(false);
 
   const handleReport = async () => {
+    if (!currentData) {
+      toast({
+        title: "Cannot Send Report",
+        description: "Current air quality data is not available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsReporting(true);
     toast({
-      title: "Reporting to Control Room",
-      description: "Sending alert...",
+      title: "Generating & Sending Report",
+      description: "Fetching AI recommendations and sending to control room...",
     });
 
     try {
-      const result = await reportToControlRoom({
-        message: "User triggered emergency: Air quality concern from dashboard.",
-      });
+      // Fetch latest recommendations and health risks
+      const [healthRes, recsRes] = await Promise.all([
+        fetchHealthRisks({ currentReadings: currentData, forecastData: null }),
+        fetchActionRecommendations({
+            co: currentData.co,
+            vocs: currentData.vocs,
+            ch4Lpg: currentData.ch4Lpg,
+            pm1_0: currentData.pm1_0,
+            pm2_5: currentData.pm2_5,
+            pm10: currentData.pm10_0,
+        })
+      ]);
+
+      const riskLevel = healthRes.riskLevel || 'N/A';
+      const advice = healthRes.advice?.join('; ') || 'No specific advice.';
+      const recommendations = recsRes.recommendations?.join('; ') || 'No specific recommendations.';
+
+      const smsMessage = `BreathEasy Alert! Risk Level: ${riskLevel}. Precautions: ${advice}. Actions: ${recommendations}.`;
+
+      const result = await reportToControlRoom({ message: smsMessage });
+      
       toast({
         title: "Report Status",
         description: result.confirmationMessage || "Control room notification process completed.",
       });
+
     } catch (error) {
       console.error("Error reporting to control room:", error);
       toast({
@@ -48,7 +76,7 @@ export function TopActionsBar() {
 
   return (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-start sm:justify-end gap-3 mb-6 p-2 sm:p-4 border bg-card rounded-lg shadow">
-      <Button onClick={handleReport} disabled={isReporting} className="w-full sm:w-auto">
+      <Button onClick={handleReport} disabled={isReporting || isLoadingReadings}>
         {isReporting ? (
           <ReportLoader className="mr-2 h-4 w-4 animate-spin" />
         ) : (

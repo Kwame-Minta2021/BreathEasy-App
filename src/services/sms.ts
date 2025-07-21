@@ -21,7 +21,7 @@ export interface ReportToControlRoomOutput {
 export async function reportToControlRoom(
   input: ReportToControlRoomInput
 ): Promise<ReportToControlRoomOutput> {
-    const smsBody = "hi";
+    const smsBody = input.message;
 
     const clientId = process.env.HUBTEL_CLIENT_ID;
     const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
