@@ -41,3 +41,8 @@ export interface AppNotification {
   timestamp: Date;
   message: string;
 }
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}

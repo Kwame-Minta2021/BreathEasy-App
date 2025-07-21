@@ -6,16 +6,13 @@ import { Send, Bot, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { askChatbot } from '@/lib/actions';
 import { Separator } from '../ui/separator';
-
-interface ChatMessage {
-  id: string;
-  sender: 'user' | 'bot';
-  text: string;
-}
+import type { ChatMessage } from '@/types';
+import { useAirQuality } from '@/contexts/air-quality-context';
+import { Message } from 'genkit';
 
 interface ChatbotDialogProps {
   isOpen: boolean;
@@ -23,6 +20,7 @@ interface ChatbotDialogProps {
 }
 
 export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
+  const { currentData } = useAirQuality();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,12 +28,11 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-       setMessages([{ id: 'initial-bot-message', sender: 'bot', text: "Hello! How can I help you with your air quality questions today?" }]);
+       setMessages([{ role: 'model', content: "Hello! How can I help you with your air quality questions today?" }]);
     }
   }, [isOpen, messages.length]);
 
   useEffect(() => {
-    // Auto-scroll to bottom
     if (scrollAreaRef.current) {
       const scrollViewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
       if (scrollViewport) {
@@ -49,27 +46,33 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
     if (!inputValue.trim()) return;
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text: inputValue,
+      role: 'user',
+      content: inputValue,
     };
-    setMessages((prev) => [...prev, userMessage]);
+    
+    const newMessages: ChatMessage[] = [...messages, userMessage];
+    setMessages(newMessages);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      const response = await askChatbot({ question: inputValue });
+      // Map ChatMessage to Genkit's Message schema before sending
+      const historyForApi: Message[] = newMessages.map(msg => ({
+        role: msg.role,
+        content: [{ text: msg.content }],
+      }));
+
+      const response = await askChatbot({ history: historyForApi, currentReadings: currentData });
+      
       const botMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: 'bot',
-        text: response.answer,
+        role: 'model',
+        content: response.answer,
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: 'bot',
-        text: 'Sorry, I encountered an error. Please try again.',
+        role: 'model',
+        content: 'Sorry, I encountered an error. Please try again.',
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -92,28 +95,28 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
         <Separator />
         <ScrollArea className="min-h-0" ref={scrollAreaRef}>
           <div className="space-y-4 p-6">
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <div
-                key={message.id}
+                key={index}
                 className={`flex items-end gap-2 ${
-                  message.sender === 'user' ? 'justify-end' : 'justify-start'
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}
               >
-                {message.sender === 'bot' && (
+                {message.role === 'model' && (
                   <Avatar className="h-8 w-8">
                     <AvatarFallback><Bot size={18}/></AvatarFallback>
                   </Avatar>
                 )}
                 <div
                   className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
-                    message.sender === 'user'
+                    message.role === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  {message.text}
+                  {message.content}
                 </div>
-                {message.sender === 'user' && (
+                {message.role === 'user' && (
                    <Avatar className="h-8 w-8">
                     <AvatarFallback><User size={18} /></AvatarFallback>
                   </Avatar>

@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -9,10 +10,23 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z, Message} from 'genkit';
+import type { AirQualityReading } from '@/types';
+
+// Define Zod schema for AirQualityReading for use in Genkit
+const AirQualityReadingSchema = z.object({
+  co: z.number(),
+  vocs: z.number(),
+  ch4Lpg: z.number(),
+  pm1_0: z.number(),
+  pm2_5: z.number(),
+  pm10_0: z.number(),
+}).nullable();
+
 
 const AirQualityChatbotInputSchema = z.object({
-  question: z.string().describe('The user question about air quality.'),
+  history: z.array(Message.schema).describe('The conversation history.'),
+  currentReadings: AirQualityReadingSchema.describe('Current air quality data.'),
 });
 export type AirQualityChatbotInput = z.infer<typeof AirQualityChatbotInputSchema>;
 
@@ -31,18 +45,32 @@ const airQualityChatbotFlow = ai.defineFlow(
     inputSchema: AirQualityChatbotInputSchema,
     outputSchema: AirQualityChatbotOutputSchema,
   },
-  async (input) => {
-    const {text} = await ai.generate({
-      prompt: `You are an AI chatbot for an air quality monitoring application.
+  async ({history, currentReadings}) => {
+    const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy.
 Your role is to answer questions ONLY about the following topics:
-1. Information available on the application's dashboard (e.g., current pollutant levels, historical trends shown on charts).
+1. Information available on the application's dashboard (e.g., current pollutant levels, historical trends).
 2. Health advice related to the air quality data presented.
 3. Recommendations for actions to take based on the air quality data.
+4. General knowledge about air pollutants and their sources.
 
-If the question is outside these topics, politely state that you can only answer questions related to the air quality application's data and features.
+If the question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy application.
 Do NOT use Markdown formatting in your responses. Provide answers in plain text.
 
-User's question: "${input.question}"`,
+If current air quality data is available, use it to answer questions.
+Current AirQuality Readings:
+${currentReadings ? `
+- CO: ${currentReadings.co.toFixed(1)} ppm
+- VOCs: ${currentReadings.vocs.toFixed(1)} ppb
+- CH4/LPG: ${currentReadings.ch4Lpg.toFixed(1)} ppm
+- PM1.0: ${currentReadings.pm1_0.toFixed(1)} µg/m³
+- PM2.5: ${currentReadings.pm2_5.toFixed(1)} µg/m³
+- PM10: ${currentReadings.pm10_0.toFixed(1)} µg/m³
+` : 'Not available.'}
+`;
+
+    const {text} = await ai.generate({
+      history: history,
+      prompt: systemPrompt,
     });
     
     if (!text) {
