@@ -81,7 +81,7 @@ const reportToControlRoomFlow = ai.defineFlow(
       }
     }
     
-    const smsBody = `BreathEasy Alert: ${input.message}\n\nCurrent Readings: ${readingsText}\n\nHealth Impact: ${healthImpactSummary}`;
+    const smsBody = `BreathEasy Alert: ${input.message}\nReadings: ${readingsText}\nHealth Impact: ${healthImpactSummary}`;
 
     const apiKey = process.env.ARKESEL_API_KEY;
     const toNumber = process.env.CONTROL_ROOM_PHONE_NUMBER;
@@ -95,41 +95,29 @@ const reportToControlRoomFlow = ai.defineFlow(
       };
     }
 
-    const endpoint = `https://sms.arkesel.com/api/v2/sms/send`;
-    
-    const payload = {
-      sender: senderId,
-      recipients: [toNumber],
-      message: smsBody,
-    };
+    const encodedSms = encodeURIComponent(smsBody);
+    const endpoint = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${toNumber}&from=${senderId}&sms=${encodedSms}`;
 
     try {
-      const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'api-key': apiKey
-          },
-          body: JSON.stringify(payload)
-      });
+      const response = await fetch(endpoint);
+      const responseText = await response.text();
 
-      const responseData: any = await response.json();
-
-      if (response.ok && responseData.status === 'SUCCESS') {
-          console.log(`SMS sent successfully via Arkesel. Details:`, responseData.data);
+      if (response.ok && responseText.startsWith('OK')) {
+          console.log(`SMS sent successfully via Arkesel v1. Response:`, responseText);
+          const reportId = responseText.split(' ')[1] || 'N/A';
           return {
               confirmationMessage: 'Report has been successfully sent to the control room.',
-              reportId: responseData.data[0]?.message_id || 'N/A',
+              reportId: reportId,
           };
       } else {
-          const errorMessage = `Arkesel error: ${responseData.message || 'Unknown error'}`;
-          console.error('Failed to send SMS via Arkesel:', errorMessage, responseData);
+          const errorMessage = `Arkesel v1 error: ${responseText || 'Unknown error'}`;
+          console.error('Failed to send SMS via Arkesel v1:', errorMessage);
           return {
               confirmationMessage: `Failed to send report: ${errorMessage}`,
           };
       }
     } catch (error: any) {
-        console.error('Exception when sending SMS via Arkesel:', error);
+        console.error('Exception when sending SMS via Arkesel v1:', error);
         return {
             confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
         };
