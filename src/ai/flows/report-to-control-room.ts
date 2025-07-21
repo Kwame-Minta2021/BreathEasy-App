@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { Twilio } from 'twilio';
+import twilio from 'twilio';
 
 const AirQualityReadingSchemaForSms = z.object({
   co: z.number().describe('Carbon Monoxide level in ppm'),
@@ -63,13 +63,13 @@ const reportToControlRoomFlow = ai.defineFlow(
     }
 
     try {
-      // Using explicit twilio.rest.Client to mirror working Python example
-      const client = new Twilio.Clients.Rest(accountSid, authToken);
+      // Use the standard Twilio client initialization
+      const client = twilio(accountSid, authToken);
       
       const message = await client.messages.create({
         body: smsContent,
-        from: '+13167516294', // Hardcoding for debug
-        to: '+233551836009',   // Hardcoding for debug
+        from: twilioPhoneNumber,
+        to: controlRoomPhoneNumber,
       });
 
       console.log(`SMS sent successfully. Message SID: ${message.sid}`);
