@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { askChatbot } from '@/lib/actions';
 import { Separator } from '../ui/separator';
-import type { ChatMessage } from '@/types';
+import type { ChatMessage, HistoricalAirQualityReading, AppNotification } from '@/types';
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { Message } from 'genkit';
 
@@ -20,7 +20,7 @@ interface ChatbotDialogProps {
 }
 
 export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
-  const { currentData } = useAirQuality();
+  const { currentData, historicalData, notifications } = useAirQuality();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,7 +62,24 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
         content: [{ text: msg.content }],
       }));
 
-      const response = await askChatbot({ history: historyForApi, currentReadings: currentData });
+      // Prepare historical data and notifications for the API
+      const historicalForApi = historicalData.slice(-100).map(r => ({ // Send last 100 readings
+        ...r,
+        timestamp: r.timestamp.toISOString(),
+      }));
+
+      const notificationsForApi = notifications.slice(0, 5).map(n => ({ // Send last 5 notifications
+        ...n,
+        timestamp: n.timestamp.toISOString(),
+      }));
+
+
+      const response = await askChatbot({ 
+        history: historyForApi, 
+        currentReadings: currentData,
+        historicalData: historicalForApi,
+        activeNotifications: notificationsForApi,
+      });
       
       const botMessage: ChatMessage = {
         role: 'model',
@@ -89,7 +106,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
             Air Quality Assistant
           </DialogTitle>
           <DialogDescription>
-            Ask me anything about air quality, health impacts, or using this dashboard.
+            Ask me about current or past readings, health impacts, or active alerts.
           </DialogDescription>
         </DialogHeader>
         <Separator />

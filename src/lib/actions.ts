@@ -17,6 +17,8 @@ import { getHealthRisks } from '@/ai/flows/health-risks';
 import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
 import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
 import { database, ref, set as firebaseSet } from '@/lib/firebase';
+import fetch from 'node-fetch';
+
 
 function logDetailedError(actionName: string, error: any) {
   console.error(
@@ -90,22 +92,13 @@ export async function fetchHealthRisks(data: HealthRisksInput): Promise<HealthRi
 }
 
 export async function reportToControlRoom(input: ReportToControlRoomInput): Promise<ReportToControlRoomOutput> {
-  try {
-    const reportId = Date.now().toString();
-    const reportPath = `control_room_reports/${reportId}`;
-    await firebaseSet(ref(database, reportPath), {
-      ...input,
-      timestamp: reportId,
-      status: 'pending', 
-    });
-    return {
-      confirmationMessage: 'Report has been successfully filed and is pending dispatch.',
-      reportId: reportId,
-    };
-  } catch (error: any) {
-    logDetailedError("reportToControlRoom", error);
-    return {
-      confirmationMessage: `Failed to file report: ${ (error as Error).message || "Unknown error"}`,
-    };
-  }
+    try {
+        const result = await reportToControlRoomFlow(input);
+        return result;
+    } catch (error: any) {
+        logDetailedError("reportToControlRoom", error);
+        return {
+            confirmationMessage: `Failed to send report: ${(error as Error).message || "Unknown error"}`,
+        };
+    }
 }
