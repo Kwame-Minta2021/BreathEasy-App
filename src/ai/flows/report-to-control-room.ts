@@ -1,8 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends an SMS notification to a control room using Twilio,
- * including current air quality readings and AI-recommended actions.
+ * @fileOverview Formats and sends an SMS notification to a control room using Twilio.
  *
  * - reportToControlRoom - A function that formats a message and sends it via SMS.
  * - ReportToControlRoomInput - The input type for the function.
@@ -11,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import Twilio from 'twilio';
+import { Twilio } from 'twilio';
 
 const AirQualityReadingSchemaForSms = z.object({
   co: z.number().describe('Carbon Monoxide level in ppm'),
@@ -64,11 +63,13 @@ const reportToControlRoomFlow = ai.defineFlow(
     }
 
     try {
-      const client = Twilio(accountSid, authToken, { accountSid: accountSid });
+      // Using explicit twilio.rest.Client to mirror working Python example
+      const client = new Twilio.Clients.Rest(accountSid, authToken);
+      
       const message = await client.messages.create({
         body: smsContent,
-        from: twilioPhoneNumber,
-        to: controlRoomPhoneNumber,
+        from: '+13167516294', // Hardcoding for debug
+        to: '+233551836009',   // Hardcoding for debug
       });
 
       console.log(`SMS sent successfully. Message SID: ${message.sid}`);
@@ -86,5 +87,3 @@ const reportToControlRoomFlow = ai.defineFlow(
     }
   }
 );
-
-
