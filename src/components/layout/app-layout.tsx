@@ -39,19 +39,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [appLayoutMounted, setAppLayoutMounted] = React.useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   
-  // ALWAYS call useSidebar unconditionally as per Rules of Hooks
-  // It will throw if SidebarProvider is not an ancestor, which is what we are debugging.
-  // The SidebarProvider itself manages providing a default context for SSR.
   const sidebarHookResult = useSidebar();
-  const { setTheme, resolvedTheme } = useTheme(); // useTheme can also be called unconditionally
+  const { setTheme, resolvedTheme } = useTheme();
 
   React.useEffect(() => {
     setAppLayoutMounted(true);
   }, []);
 
   if (!appLayoutMounted) {
-    // This loading state is important to prevent hydration mismatches for UI
-    // elements that depend on the *final* client-side value of isMobile.
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -60,8 +55,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // appLayoutMounted is true.
-  // The value of sidebarHookResult.isMobile is now the settled client-side value from SidebarProvider's context.
   const { isMobile } = sidebarHookResult;
 
   return (
@@ -70,7 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarHeader className="p-4 items-center">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
             <Leaf className="h-7 w-7 text-primary flex-shrink-0" />
-            {isMobile ? ( // Use isMobile from context
+            {isMobile ? (
               <SheetTitle className="text-2xl font-bold text-primary font-headline group-data-[collapsible=icon]:hidden">
                 {APP_NAME}
               </SheetTitle>
@@ -136,8 +129,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        {/* Mobile Header */}
-        {isMobile && ( // Conditionally render mobile header based on context
+        {isMobile && (
             <div className="md:hidden flex items-center justify-between p-4 border-b bg-background sticky top-0 z-10">
             <SidebarTrigger /> 
             <Link href="/" className="text-lg font-bold text-primary font-headline">

@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { Bell, X, ArrowRight } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -13,17 +13,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { format } from 'date-fns';
 import { useSidebar } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button'; // Keep for X button
-import { SidebarMenuButton } from '@/components/ui/sidebar'; // Import for the trigger
+import { Button } from '@/components/ui/button';
+import { SidebarMenuButton } from '@/components/ui/sidebar';
 
 export function NotificationsSidebar() {
   const { notifications, clearNotification } = useAirQuality();
   const [isOpen, setIsOpen] = React.useState(false);
   const { state: sidebarState, isMobile } = useSidebar();
-
-  // In mobile view or when sidebar is collapsed, the content might pop out or behave differently.
-  // For now, the pop-out logic is maintained for collapsed desktop.
-  // The trigger will now be a SidebarMenuButton.
 
   if (sidebarState === "collapsed" && !isMobile) {
     return (
@@ -32,8 +28,8 @@ export function NotificationsSidebar() {
           <SidebarMenuButton
             className="w-full justify-center"
             tooltip={{ children: `Notifications (${notifications.length})`, side: "right", align: "center" }}
-            variant="ghost" // Match previous style for collapsed icon button
-            size="icon"     // Match previous style for collapsed icon button
+            variant="ghost"
+            size="icon"
           >
             <Bell className="h-5 w-5" />
             {notifications.length > 0 && (
@@ -86,7 +82,6 @@ export function NotificationsSidebar() {
       <CollapsibleTrigger asChild>
         <SidebarMenuButton 
           className="w-full"
-          // isActive={isOpen} // Optionally manage active state
         >
           <Bell />
           <span>Notifications</span>
@@ -98,7 +93,7 @@ export function NotificationsSidebar() {
         </SidebarMenuButton>
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-1 px-2">
-        {isOpen && notifications.length > 0 && ( // Only render content if open and has notifications
+        {isOpen && notifications.length > 0 && (
           <Card className="border-sidebar-border bg-sidebar-accent/50">
             <CardHeader className="p-2">
                 <CardTitle className="text-xs font-medium">Active Alerts</CardTitle>

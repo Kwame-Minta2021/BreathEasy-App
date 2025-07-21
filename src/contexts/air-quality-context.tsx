@@ -12,15 +12,14 @@ import { addDays } from 'date-fns';
 import { database } from '@/lib/firebase';
 import { ref, onValue, off, query, orderByKey, limitToLast, DataSnapshot, set as firebaseSet } from 'firebase/database';
 
-// Define a type for the raw Firebase sensor reading structure
 interface FirebaseSensorReading {
   CO_ppm?: number;
-  VOCs_ppm?: number; // Assuming this is indeed PPM from sensor
+  VOCs_ppm?: number;
   CH4_LPG_ppm?: number;
   PM1_0_ug_m3?: number;
   PM2_5_ug_m3?: number;
   PM10_ug_m3?: number;
-  timestamp?: number; // Assuming Unix timestamp in seconds
+  timestamp?: number;
   WiFi_SSID?: string;
 }
 
@@ -88,24 +87,22 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
 
 
   const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
-    const mapped = {
+    return {
       co: fbReading.CO_ppm ?? 0,
-      vocs: (fbReading.VOCs_ppm ?? 0) * 1000, // Convert PPM from sensor to PPB for AI
-      ch4Lpg: fbReading.CH4_LPG_ppm ?? 0, // AI expects PPM, sensor provides PPM
+      vocs: (fbReading.VOCs_ppm ?? 0) * 1000,
+      ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
       pm10_0: fbReading.PM10_ug_m3 ?? 0,
     };
-    return mapped;
   }, []);
 
-  const checkForNotifications = useCallback(() => { 
-    const dataToCheck = currentDataRef.current;
+  const checkForNotifications = useCallback((dataToCheck: AirQualityReading | null, currentThresholds: UserThresholds) => { 
     if (!dataToCheck) return;
 
     const newNotificationsToAdd: AppNotification[] = [];
     POLLUTANTS_LIST.forEach(pollutant => {
-      const thresholdValue = thresholds[pollutant.id];
+      const thresholdValue = currentThresholds[pollutant.id];
       const currentValue = dataToCheck[pollutant.id];
       if (thresholdValue !== undefined && thresholdValue !== Number.MAX_SAFE_INTEGER && currentValue > thresholdValue) {
         const existingNotification = notificationsRef.current.find(
@@ -127,10 +124,9 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     if (newNotificationsToAdd.length > 0) {
       setNotifications(prev => [...newNotificationsToAdd, ...prev].slice(0, 10));
     }
-  }, [thresholds]); 
+  }, []); 
 
-  const updateAiData = useCallback(() => { 
-    const dataToProcess = currentDataRef.current;
+  const updateAiData = useCallback((dataToProcess: AirQualityReading | null) => { 
     if (!dataToProcess || isLoadingAnalysisRef.current || isLoadingRecommendationsRef.current) return;
 
     setIsLoadingAnalysis(true);
@@ -191,17 +187,14 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       
       if (!fbData) {
         setCurrentData(null);
-        setLastProcessedForAI(null);
         return; 
       }
       
       const hasPollutantKeys = ['CO_ppm', 'VOCs_ppm', 'PM2_5_ug_m3'].some(key => key in fbData!);
       if (!hasPollutantKeys || Object.keys(fbData!).length < 5 ) { 
            setCurrentData(null); 
-           setLastProcessedForAI(null); 
            return;
       }
-
 
       const appData = mapFirebaseToAppReading(fbData);
 
@@ -213,38 +206,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
         return updatedHist.slice(-MAX_HISTORICAL_READINGS);
       });
       
-      checkForNotifications(); 
-
-      let shouldUpdateAI = false;
-      const previousDataForAI = lastProcessedForAI;
-
-      if (!previousDataForAI && appData) { // Only update if there's new data and no previous AI processing
-          shouldUpdateAI = true;
-      }
-      // Temporarily disable significant change trigger for AI update:
-      /*
-      else if (currentDataRef.current === null && appData !== null) { 
-          shouldUpdateAI = true;
-      } else if (appData !== null && previousDataForAI !== null) { 
-          const significantChange = Object.keys(appData).some(key => {
-              const currentVal = appData[key as keyof AirQualityReading];
-              const previousVal = previousDataForAI?.[key as keyof AirQualityReading];
-              if (typeof currentVal === 'number' && typeof previousVal === 'number') {
-                  if (previousVal === 0 && currentVal !== 0) return true;
-                  if (previousVal === 0 && currentVal === 0) return false; 
-                  return Math.abs(currentVal - previousVal) / previousVal > 0.1; // 10% change
-              }
-              return false;
-          });
-          if (significantChange) {
-              shouldUpdateAI = true;
-          }
-      }
-      */
-      
-      if (shouldUpdateAI) {
-        updateAiData(); 
-      }
+      checkForNotifications(appData, thresholds); 
     };
 
     const handleError = (error: Error) => {
@@ -254,7 +216,6 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       }
       console.error("Firebase data error:", error);
       setCurrentData(null);
-      setLastProcessedForAI(null);
     };
 
     onValue(sensorDataQuery, handleData, handleError);
@@ -263,7 +224,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       off(sensorDataQuery, 'value', handleData);
       initialSensorLoadDoneRef.current = false; 
     };
-  }, [mapFirebaseToAppReading, checkForNotifications, updateAiData, lastProcessedForAI]); // Added lastProcessedForAI to dependencies
+  }, [mapFirebaseToAppReading, checkForNotifications, thresholds]);
 
   useEffect(() => {
     const thresholdsPathRef = ref(database, USER_THRESHOLDS_PATH);
@@ -298,7 +259,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   useEffect(() => {
     const intervalId = setInterval(() => {
       if (currentDataRef.current && !isLoadingAnalysisRef.current && !isLoadingRecommendationsRef.current) {
-        updateAiData();
+        updateAiData(currentDataRef.current);
       }
     }, POLLING_INTERVAL_MS);
 
@@ -345,4 +306,3 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
-

@@ -35,10 +35,7 @@ export default function SettingsPage() {
       if (value !== undefined && value !== null && !isNaN(value)) {
         updateThreshold(p.id, value);
       } else {
-        // If user clears input or it's invalid, effectively remove/reset threshold
-        // Context's updateThreshold should handle how to "remove" (e.g., set to MAX_SAFE_INTEGER or a specific undefined marker)
-        // For now, let's assume context handles undefined as "no threshold" or a reset.
-        updateThreshold(p.id, Number.MAX_SAFE_INTEGER); // Or a specific "unset" value
+        updateThreshold(p.id, Number.MAX_SAFE_INTEGER); 
       }
     });
     toast({
