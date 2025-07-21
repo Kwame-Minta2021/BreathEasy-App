@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends an SMS notification to a control room using Twilio API directly.
+ * @fileOverview Formats and saves a report to the Firebase Realtime Database for the control room.
  *
- * - reportToControlRoom - A function that formats a message and sends it via SMS.
+ * - reportToControlRoom - A function that formats a message and saves it to Firebase.
  * - ReportToControlRoomInput - The input type for the function.
  * - ReportToControlRoomOutput - The return type for the function.
  */
@@ -12,9 +12,9 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import {getActionRecommendations} from './action-recommendations';
 import type {ActionRecommendationsInput} from './action-recommendations';
-import fetch from 'node-fetch';
+import {database, set, ref} from '@/lib/firebase';
 
-const AirQualityReadingSchemaForSms = z
+const AirQualityReadingSchemaForReport = z
   .object({
     co: z.number().describe('Carbon Monoxide level in ppm'),
     vocs: z.number().describe('Volatile Organic Compounds level in ppb'),
@@ -25,12 +25,12 @@ const AirQualityReadingSchemaForSms = z
   })
   .optional()
   .describe(
-    'Optional current air quality sensor readings to include in the SMS.'
+    'Optional current air quality sensor readings to include in the report.'
   );
 
 const ReportToControlRoomInputSchema = z.object({
   message: z.string().describe('The core message or reason for the report.'),
-  currentReadings: AirQualityReadingSchemaForSms,
+  currentReadings: AirQualityReadingSchemaForReport,
 });
 export type ReportToControlRoomInput = z.infer<
   typeof ReportToControlRoomInputSchema
@@ -40,15 +40,12 @@ const ReportToControlRoomOutputSchema = z.object({
   confirmationMessage: z
     .string()
     .describe(
-      'A message confirming the report status (sent, failed, or not configured).'
+      'A message confirming the report status (filed or failed).'
     ),
-  smsContent: z
-    .string()
-    .describe('The content of the SMS that was intended to be sent.'),
-  messageSid: z
+  reportId: z
     .string()
     .optional()
-    .describe('The Twilio message SID if successfully sent.'),
+    .describe('The unique ID of the report filed in the database.'),
 });
 export type ReportToControlRoomOutput = z.infer<
   typeof ReportToControlRoomOutputSchema
@@ -67,28 +64,6 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async input => {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_PHONE_NUMBER;
-    const to = process.env.CONTROL_ROOM_PHONE_NUMBER;
-
-    if (!accountSid || !authToken || !from || !to) {
-      const missingVars = [
-        !accountSid && 'TWILIO_ACCOUNT_SID',
-        !authToken && 'TWILIO_AUTH_TOKEN',
-        !from && 'TWILIO_PHONE_NUMBER',
-        !to && 'CONTROL_ROOM_PHONE_NUMBER',
-      ]
-        .filter(Boolean)
-        .join(', ');
-      const logMessage = `Twilio credentials missing: ${missingVars}. SMS not sent.`;
-      console.warn(logMessage);
-      return {
-        confirmationMessage: `SMS not sent: Service not configured. Missing: ${missingVars}.`,
-        smsContent: 'Configuration Error',
-      };
-    }
-
     let recommendations: string[] = [];
     if (input.currentReadings) {
       try {
@@ -99,68 +74,38 @@ const reportToControlRoomFlow = ai.defineFlow(
         const result = await getActionRecommendations(recsInput);
         recommendations = result.recommendations;
       } catch (e) {
-        console.error('Failed to get AI recommendations for SMS', e);
+        console.error('Failed to get AI recommendations for report', e);
         recommendations = ['Could not generate recommendations.'];
       }
     }
 
-    let body = `Alert: ${input.message}`;
-    if (input.currentReadings) {
-      body += ` | Readings: CO=${input.currentReadings.co.toFixed(1)}, VOCs=${input.currentReadings.vocs.toFixed(
-        0
-      )}, PM2.5=${input.currentReadings.pm2_5.toFixed(1)}`;
-    }
-    if (recommendations.length > 0) {
-      body += ` | Actions: ${recommendations.slice(0, 2).join('. ')}.`;
-    }
-    // Twilio will add their own prefix for trial accounts.
-    // body = `Sent from your Twilio trial account - ${body}`;
+    const reportTimestamp = Date.now();
+    const reportId = `report_${reportTimestamp}`;
 
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+    const reportData = {
+      ...input,
+      recommendations,
+      timestamp: reportTimestamp,
+      status: 'new', // For a backend function to process
+    };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Basic ${auth}`,
-        },
-        body: new URLSearchParams({
-          To: to,
-          From: from,
-          Body: body,
-        }),
-      });
+      // Save the report to a new path in Firebase Realtime Database
+      const reportRef = ref(database, `control_room_reports/${reportId}`);
+      await set(reportRef, reportData);
 
-      const responseData: any = await response.json();
-
-      if (!response.ok) {
-        console.error(
-          'Twilio API Error:',
-          responseData.message || 'Unknown Error'
-        );
-        throw new Error(
-          `Twilio error ${responseData.code || response.status}: ${
-            responseData.message
-          }`
-        );
-      }
-
-      console.log(`SMS submitted successfully. SID: ${responseData.sid}`);
+      console.log(`Report filed successfully. ID: ${reportId}`);
       return {
         confirmationMessage:
-          'Report has been successfully sent to the control room via SMS.',
-        smsContent: body,
-        messageSid: responseData.sid,
+          'Report has been successfully filed and is pending review by the control room.',
+        reportId: reportId,
       };
     } catch (error: any) {
-      console.error('Failed to send SMS via fetch:', error);
+      console.error('Failed to file report to Firebase:', error);
       return {
-        confirmationMessage: `Failed to send SMS: ${
+        confirmationMessage: `Failed to file report: ${
           error.message || 'Unknown error. Check server logs.'
         }`,
-        smsContent: body,
       };
     }
   }
