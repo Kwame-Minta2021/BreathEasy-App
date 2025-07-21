@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends a report to the control room via Arkesel SMS.
+ * @fileOverview Formats and sends a report to the control room via Hubtel SMS.
  *
  * - reportToControlRoom - A function that formats a message and sends it.
  * - ReportToControlRoomInput - The input type for the function.
@@ -83,41 +83,55 @@ const reportToControlRoomFlow = ai.defineFlow(
     
     const smsBody = `BreathEasy Alert: ${input.message}\nReadings: ${readingsText}\nHealth Impact: ${healthImpactSummary}`;
 
-    const apiKey = process.env.ARKESEL_API_KEY;
-    const toNumber = process.env.CONTROL_ROOM_PHONE_NUMBER;
-    const senderId = process.env.SENDER_ID || 'BreathEasy';
+    const clientId = process.env.HUBTEL_CLIENT_ID;
+    const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
+    const from = process.env.SENDER_ID;
+    const to = process.env.CONTROL_ROOM_PHONE_NUMBER;
 
-    if (!apiKey || !toNumber) {
-      const errorMessage = "Arkesel API key or recipient phone number are not configured in environment variables.";
+    if (!clientId || !clientSecret || !from || !to) {
+      const errorMessage = "Hubtel credentials or recipient phone number are not configured in environment variables.";
       console.error(errorMessage);
       return {
         confirmationMessage: `Failed to send report: ${errorMessage}`,
       };
     }
-
-    const encodedSms = encodeURIComponent(smsBody);
-    const endpoint = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${apiKey}&to=${toNumber}&from=${senderId}&sms=${encodedSms}`;
+    
+    const params = new URLSearchParams({
+        clientsecret: clientSecret,
+        clientid: clientId,
+        from: from,
+        to: to,
+        content: smsBody,
+    });
+    
+    const endpoint = `https://smsc.hubtel.com/v1/messages/send?${params.toString()}`;
 
     try {
       const response = await fetch(endpoint);
-      const responseText = await response.text();
+      
+      if (response.status === 201) {
+        const responseData = await response.json() as { status?: number, messageId?: string, message?: string };
+        const hubtelStatus = responseData.status;
 
-      if (response.ok && responseText.startsWith('OK')) {
-          console.log(`SMS sent successfully via Arkesel v1. Response:`, responseText);
-          const reportId = responseText.split(' ')[1] || 'N/A';
+        if (hubtelStatus === 0 || hubtelStatus === 1) { // 0: Pending, 1: Sent
           return {
-              confirmationMessage: 'Report has been successfully sent to the control room.',
-              reportId: reportId,
+            confirmationMessage: 'Report has been successfully sent to the control room.',
+            reportId: responseData.messageId || 'N/A',
           };
+        } else {
+           const errorMessage = `Hubtel API Error: ${responseData.message || JSON.stringify(responseData)}`;
+           console.error(errorMessage);
+           return { confirmationMessage: `Failed to send report: ${errorMessage}` };
+        }
       } else {
-          const errorMessage = `Arkesel v1 error: ${responseText || 'Unknown error'}`;
-          console.error('Failed to send SMS via Arkesel v1:', errorMessage);
-          return {
-              confirmationMessage: `Failed to send report: ${errorMessage}`,
-          };
+        const responseText = await response.text();
+        const errorMessage = `Hubtel API Error (Status ${response.status}): ${responseText}`;
+        console.error(errorMessage);
+        return { confirmationMessage: `Failed to send report: ${errorMessage}` };
       }
+
     } catch (error: any) {
-        console.error('Exception when sending SMS via Arkesel v1:', error);
+        console.error('Exception when sending SMS via Hubtel:', error);
         return {
             confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
         };
