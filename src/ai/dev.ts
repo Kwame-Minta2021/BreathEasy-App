@@ -8,4 +8,3 @@ import '@/ai/flows/air-quality-chatbot.ts';
 import '@/ai/flows/forecast-24h.ts';
 import '@/ai/flows/forecast-weekly.ts';
 import '@/ai/flows/health-risks.ts';
-import '@/ai/flows/report-to-control-room.ts';

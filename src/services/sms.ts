@@ -1,50 +1,26 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends a report to the control room via Hubtel SMS.
+ * @fileOverview A service for sending SMS messages via the Hubtel API.
  *
  * - reportToControlRoom - A function that formats a message and sends it.
  * - ReportToControlRoomInput - The input type for the function.
  * - ReportToControlRoomOutput - The return type for the function.
  */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
 import fetch from 'node-fetch';
 
-const ReportToControlRoomInputSchema = z.object({
-  message: z.string().describe('The core message or reason for the report.'),
-});
-export type ReportToControlRoomInput = z.infer<
-  typeof ReportToControlRoomInputSchema
->;
+export interface ReportToControlRoomInput {
+  message: string;
+}
 
-const ReportToControlRoomOutputSchema = z.object({
-  confirmationMessage: z
-    .string()
-    .describe('A message confirming the report status (sent or failed).'),
-  reportId: z
-    .string()
-    .optional()
-    .describe('The ID of the message if sent successfully.'),
-});
-export type ReportToControlRoomOutput = z.infer<
-  typeof ReportToControlRoomOutputSchema
->;
+export interface ReportToControlRoomOutput {
+  confirmationMessage: string;
+  reportId?: string;
+}
 
 export async function reportToControlRoom(
   input: ReportToControlRoomInput
 ): Promise<ReportToControlRoomOutput> {
-  return reportToControlRoomFlow(input);
-}
-
-const reportToControlRoomFlow = ai.defineFlow(
-  {
-    name: 'reportToControlRoomFlow',
-    inputSchema: ReportToControlRoomInputSchema,
-    outputSchema: ReportToControlRoomOutputSchema,
-  },
-  async input => {
     const smsBody = "hi";
 
     const clientId = process.env.HUBTEL_CLIENT_ID;
@@ -100,5 +76,4 @@ const reportToControlRoomFlow = ai.defineFlow(
             confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
         };
     }
-  }
-);
+}

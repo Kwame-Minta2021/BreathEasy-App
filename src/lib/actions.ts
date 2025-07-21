@@ -14,8 +14,8 @@ import type { ForecastWeeklyInput, ForecastWeeklyOutput } from '@/ai/flows/forec
 import { forecastWeekly } from '@/ai/flows/forecast-weekly';
 import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risks';
 import { getHealthRisks } from '@/ai/flows/health-risks';
-import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
-import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
+import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/services/sms';
+import { reportToControlRoom as reportToControlRoomFlow } from '@/services/sms';
 
 
 function logDetailedError(actionName: string, error: any) {
