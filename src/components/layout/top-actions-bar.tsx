@@ -19,22 +19,12 @@ export function TopActionsBar() {
     setIsReporting(true);
     toast({
       title: "Reporting to Control Room",
-      description: "Sending alert with current sensor readings and recommendations...",
+      description: "Sending alert...",
     });
-
-    const readingsForSms = currentData ? {
-      co: currentData.co,
-      vocs: currentData.vocs,
-      ch4Lpg: currentData.ch4Lpg,
-      pm1_0: currentData.pm1_0,
-      pm2_5: currentData.pm2_5,
-      pm10_0: currentData.pm10_0,
-    } : undefined;
 
     try {
       const result = await reportToControlRoom({
         message: "User triggered emergency: Air quality concern from dashboard.",
-        currentReadings: readingsForSms,
       });
       toast({
         title: "Report Status",
