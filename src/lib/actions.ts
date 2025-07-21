@@ -16,8 +16,6 @@ import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risk
 import { getHealthRisks } from '@/ai/flows/health-risks';
 import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/ai/flows/report-to-control-room';
 import { reportToControlRoom as reportToControlRoomFlow } from '@/ai/flows/report-to-control-room';
-import { database, ref, set as firebaseSet } from '@/lib/firebase';
-import fetch from 'node-fetch';
 
 
 function logDetailedError(actionName: string, error: any) {
