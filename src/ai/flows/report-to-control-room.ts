@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends a report to the control room via MNotify SMS.
+ * @fileOverview Formats and sends a report to the control room via Arkesel SMS.
  *
  * - reportToControlRoom - A function that formats a message and sends it.
  * - ReportToControlRoomInput - The input type for the function.
@@ -83,48 +83,53 @@ const reportToControlRoomFlow = ai.defineFlow(
     
     const smsBody = `BreathEasy Alert: ${input.message}\n\nCurrent Readings: ${readingsText}\n\nHealth Impact: ${healthImpactSummary}`;
 
-    const apiKey = process.env.MNOTIFY_API_KEY;
+    const apiKey = process.env.ARKESEL_API_KEY;
     const toNumber = process.env.CONTROL_ROOM_PHONE_NUMBER;
-    const senderId = 'BreathEasy';
+    const senderId = process.env.SENDER_ID || 'BreathEasy';
 
     if (!apiKey || !toNumber) {
-      const errorMessage = "MNotify API key or recipient phone number are not configured in environment variables.";
+      const errorMessage = "Arkesel API key or recipient phone number are not configured in environment variables.";
       console.error(errorMessage);
       return {
         confirmationMessage: `Failed to send report: ${errorMessage}`,
       };
     }
 
-    const endpoint = `https://api.mnotify.com/api/sms/quick?key=${apiKey}`;
+    const endpoint = `https://sms.arkesel.com/api/v2/sms/send`;
     
-    const params = new URLSearchParams({
-        to: toNumber,
-        msg: smsBody,
-        sender_id: senderId,
-    });
+    const payload = {
+      sender: senderId,
+      recipients: [toNumber],
+      message: smsBody,
+    };
 
     try {
-      const response = await fetch(`${endpoint}&${params.toString()}`, {
-          method: 'GET', // MNotify Quick SMS uses GET
+      const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'api-key': apiKey
+          },
+          body: JSON.stringify(payload)
       });
 
       const responseData: any = await response.json();
 
-      if (response.ok && responseData.code === '2000') {
-          console.log(`SMS sent successfully via MNotify. ID: ${responseData.message_id}`);
+      if (response.ok && responseData.status === 'SUCCESS') {
+          console.log(`SMS sent successfully via Arkesel. Details:`, responseData.data);
           return {
               confirmationMessage: 'Report has been successfully sent to the control room.',
-              reportId: responseData.message_id,
+              reportId: responseData.data[0]?.message_id || 'N/A',
           };
       } else {
-          const errorMessage = `MNotify error ${responseData.code}: ${responseData.message}`;
-          console.error('Failed to send SMS via MNotify:', errorMessage, responseData);
+          const errorMessage = `Arkesel error: ${responseData.message || 'Unknown error'}`;
+          console.error('Failed to send SMS via Arkesel:', errorMessage, responseData);
           return {
               confirmationMessage: `Failed to send report: ${errorMessage}`,
           };
       }
     } catch (error: any) {
-        console.error('Exception when sending SMS via MNotify:', error);
+        console.error('Exception when sending SMS via Arkesel:', error);
         return {
             confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
         };
