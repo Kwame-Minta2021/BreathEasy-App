@@ -62,26 +62,7 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async input => {
-    let healthImpactSummary = 'No health analysis available.';
-    let readingsText = 'No readings provided.';
-
-    if (input.currentReadings) {
-      try {
-        const analysisInput: AirQualityAnalysisInput = {
-          ...input.currentReadings,
-        };
-        const result = await analyzeAirQuality(analysisInput);
-        healthImpactSummary = result.summary;
-
-        readingsText = `CO: ${input.currentReadings.co.toFixed(1)}ppm, PM2.5: ${input.currentReadings.pm2_5.toFixed(1)}µg/m³, VOCs: ${input.currentReadings.vocs.toFixed(0)}ppb`;
-
-      } catch (e) {
-        console.error('Failed to get AI health analysis for report', e);
-        healthImpactSummary = 'Could not generate health impact analysis.';
-      }
-    }
-    
-    const smsBody = `BreathEasy Alert: ${input.message}\nReadings: ${readingsText}\nHealth Impact: ${healthImpactSummary}`;
+    const smsBody = "hi";
 
     const clientId = process.env.HUBTEL_CLIENT_ID;
     const clientSecret = process.env.HUBTEL_CLIENT_SECRET;
