@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Formats and sends a report to the control room via Twilio SMS.
+ * @fileOverview Formats and sends a report to the control room via MNotify SMS.
  *
  * - reportToControlRoom - A function that formats a message and sends it.
  * - ReportToControlRoomInput - The input type for the function.
@@ -43,7 +43,7 @@ const ReportToControlRoomOutputSchema = z.object({
   reportId: z
     .string()
     .optional()
-    .describe('The SID of the message if sent successfully.'),
+    .describe('The ID of the message if sent successfully.'),
 });
 export type ReportToControlRoomOutput = z.infer<
   typeof ReportToControlRoomOutputSchema
@@ -83,53 +83,48 @@ const reportToControlRoomFlow = ai.defineFlow(
     
     const smsBody = `BreathEasy Alert: ${input.message}\n\nCurrent Readings: ${readingsText}\n\nHealth Impact: ${healthImpactSummary}`;
 
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const apiKey = process.env.MNOTIFY_API_KEY;
     const toNumber = process.env.CONTROL_ROOM_PHONE_NUMBER;
+    const senderId = 'BreathEasy';
 
-    if (!accountSid || !authToken || !fromNumber || !toNumber) {
-      const errorMessage = "Twilio credentials are not configured in the environment variables.";
+    if (!apiKey || !toNumber) {
+      const errorMessage = "MNotify API key or recipient phone number are not configured in environment variables.";
       console.error(errorMessage);
       return {
         confirmationMessage: `Failed to send report: ${errorMessage}`,
       };
     }
 
-    const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
+    const endpoint = `https://api.mnotify.com/api/sms/quick?key=${apiKey}`;
+    
+    const params = new URLSearchParams({
+        to: toNumber,
+        msg: smsBody,
+        sender_id: senderId,
+    });
 
     try {
-      const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-              'Authorization': authHeader,
-              'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-              To: toNumber,
-              From: fromNumber,
-              Body: smsBody,
-          }),
+      const response = await fetch(`${endpoint}&${params.toString()}`, {
+          method: 'GET', // MNotify Quick SMS uses GET
       });
 
       const responseData: any = await response.json();
 
-      if (response.ok && !responseData.error_code) {
-          console.log(`SMS sent successfully. SID: ${responseData.sid}`);
+      if (response.ok && responseData.code === '2000') {
+          console.log(`SMS sent successfully via MNotify. ID: ${responseData.message_id}`);
           return {
               confirmationMessage: 'Report has been successfully sent to the control room.',
-              reportId: responseData.sid,
+              reportId: responseData.message_id,
           };
       } else {
-          const errorMessage = `Twilio error ${responseData.code}: ${responseData.message}`;
-          console.error('Failed to send SMS via Twilio:', errorMessage, responseData);
+          const errorMessage = `MNotify error ${responseData.code}: ${responseData.message}`;
+          console.error('Failed to send SMS via MNotify:', errorMessage, responseData);
           return {
               confirmationMessage: `Failed to send report: ${errorMessage}`,
           };
       }
     } catch (error: any) {
-        console.error('Exception when sending SMS via Twilio:', error);
+        console.error('Exception when sending SMS via MNotify:', error);
         return {
             confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
         };
