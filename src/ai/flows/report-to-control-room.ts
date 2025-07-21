@@ -1,18 +1,18 @@
 
 'use server';
 /**
- * @fileOverview Formats and saves a report to the Firebase Realtime Database for the control room.
+ * @fileOverview Formats and sends a report to the control room via Twilio SMS.
  *
- * - reportToControlRoom - A function that formats a message and saves it to Firebase.
+ * - reportToControlRoom - A function that formats a message and sends it.
  * - ReportToControlRoomInput - The input type for the function.
  * - ReportToControlRoomOutput - The return type for the function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {getActionRecommendations} from './action-recommendations';
-import type {ActionRecommendationsInput} from './action-recommendations';
-import {database, set, ref} from '@/lib/firebase';
+import {analyzeAirQuality} from './air-quality-analysis';
+import type {AirQualityAnalysisInput} from './air-quality-analysis';
+import fetch from 'node-fetch';
 
 const AirQualityReadingSchemaForReport = z
   .object({
@@ -39,13 +39,11 @@ export type ReportToControlRoomInput = z.infer<
 const ReportToControlRoomOutputSchema = z.object({
   confirmationMessage: z
     .string()
-    .describe(
-      'A message confirming the report status (filed or failed).'
-    ),
+    .describe('A message confirming the report status (sent or failed).'),
   reportId: z
     .string()
     .optional()
-    .describe('The unique ID of the report filed in the database.'),
+    .describe('The SID of the message if sent successfully.'),
 });
 export type ReportToControlRoomOutput = z.infer<
   typeof ReportToControlRoomOutputSchema
@@ -64,49 +62,77 @@ const reportToControlRoomFlow = ai.defineFlow(
     outputSchema: ReportToControlRoomOutputSchema,
   },
   async input => {
-    let recommendations: string[] = [];
+    let healthImpactSummary = 'No health analysis available.';
+    let readingsText = 'No readings provided.';
+
     if (input.currentReadings) {
       try {
-        const recsInput: ActionRecommendationsInput = {
+        const analysisInput: AirQualityAnalysisInput = {
           ...input.currentReadings,
-          pm10: input.currentReadings.pm10_0,
         };
-        const result = await getActionRecommendations(recsInput);
-        recommendations = result.recommendations;
+        const result = await analyzeAirQuality(analysisInput);
+        healthImpactSummary = result.summary;
+
+        readingsText = `CO: ${input.currentReadings.co.toFixed(1)}ppm, PM2.5: ${input.currentReadings.pm2_5.toFixed(1)}µg/m³, VOCs: ${input.currentReadings.vocs.toFixed(0)}ppb`;
+
       } catch (e) {
-        console.error('Failed to get AI recommendations for report', e);
-        recommendations = ['Could not generate recommendations.'];
+        console.error('Failed to get AI health analysis for report', e);
+        healthImpactSummary = 'Could not generate health impact analysis.';
       }
     }
+    
+    const smsBody = `BreathEasy Alert: ${input.message}\n\nCurrent Readings: ${readingsText}\n\nHealth Impact: ${healthImpactSummary}`;
 
-    const reportTimestamp = Date.now();
-    const reportId = `report_${reportTimestamp}`;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const toNumber = process.env.CONTROL_ROOM_PHONE_NUMBER;
 
-    const reportData = {
-      ...input,
-      recommendations,
-      timestamp: reportTimestamp,
-      status: 'new', // For a backend function to process
-    };
+    if (!accountSid || !authToken || !fromNumber || !toNumber) {
+      const errorMessage = "Twilio credentials are not configured in the environment variables.";
+      console.error(errorMessage);
+      return {
+        confirmationMessage: `Failed to send report: ${errorMessage}`,
+      };
+    }
+
+    const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const authHeader = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`;
 
     try {
-      // Save the report to a new path in Firebase Realtime Database
-      const reportRef = ref(database, `control_room_reports/${reportId}`);
-      await set(reportRef, reportData);
+      const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+              'Authorization': authHeader,
+              'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+              To: toNumber,
+              From: fromNumber,
+              Body: smsBody,
+          }),
+      });
 
-      console.log(`Report filed successfully. ID: ${reportId}`);
-      return {
-        confirmationMessage:
-          'Report has been successfully filed and is pending review by the control room.',
-        reportId: reportId,
-      };
+      const responseData: any = await response.json();
+
+      if (response.ok && !responseData.error_code) {
+          console.log(`SMS sent successfully. SID: ${responseData.sid}`);
+          return {
+              confirmationMessage: 'Report has been successfully sent to the control room.',
+              reportId: responseData.sid,
+          };
+      } else {
+          const errorMessage = `Twilio error ${responseData.code}: ${responseData.message}`;
+          console.error('Failed to send SMS via Twilio:', errorMessage, responseData);
+          return {
+              confirmationMessage: `Failed to send report: ${errorMessage}`,
+          };
+      }
     } catch (error: any) {
-      console.error('Failed to file report to Firebase:', error);
-      return {
-        confirmationMessage: `Failed to file report: ${
-          error.message || 'Unknown error. Check server logs.'
-        }`,
-      };
+        console.error('Exception when sending SMS via Twilio:', error);
+        return {
+            confirmationMessage: `Failed to send report: ${error.message || 'Unknown network error.'}`,
+        };
     }
   }
 );

@@ -93,14 +93,8 @@ export async function reportToControlRoom(data: ReportToControlRoomInput): Promi
         return await reportToControlRoomFlow(data);
     } catch (error: any) {
         logDetailedError("reportToControlRoom", error);
-        let smsContentOnError = `User Message: ${data.message}`;
-        if (data.currentReadings) {
-            smsContentOnError += ` | Readings: CO ${data.currentReadings.co}, PM2.5 ${data.currentReadings.pm2_5}`;
-        }
         return { 
-            confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`, 
-            smsContent: smsContentOnError,
-            messageSid: undefined
+            confirmationMessage: `Failed to send report: ${ (error as Error).message || "Unknown error"}`,
         };
     }
 }
