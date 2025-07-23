@@ -52,21 +52,21 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [actionRecommendations, setActionRecommendations] = useState<string[] | null>(null);
   const [isLoadingReadings, setIsLoadingReadings] = useState(true);
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(true); // Start as true
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(true); // Start as true
   const [thresholds, setThresholds] = useState<UserThresholds>({});
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date(),
   });
-  const [lastProcessedForAI, setLastProcessedForAI] = useState<AirQualityReading | null>(null);
   
   const initialSensorLoadDoneRef = useRef(false);
   const notificationsRef = useRef(notifications);
   const isLoadingAnalysisRef = useRef(isLoadingAnalysis);
   const isLoadingRecommendationsRef = useRef(isLoadingRecommendations);
   const currentDataRef = useRef(currentData);
+  const lastAiUpdateTimestampRef = useRef(0);
 
 
   useEffect(() => {
@@ -126,42 +126,47 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   }, []); 
 
-  const updateAiData = useCallback((dataToProcess: AirQualityReading | null) => { 
-    if (!dataToProcess || isLoadingAnalysisRef.current || isLoadingRecommendationsRef.current) return;
-
+  const updateAiData = useCallback(async (dataToProcess: AirQualityReading) => {
+    if (isLoadingAnalysisRef.current || isLoadingRecommendationsRef.current) return;
+    
     setIsLoadingAnalysis(true);
     setIsLoadingRecommendations(true);
-    const analysisInput: AirQualityAnalysisInput = {
-      co: dataToProcess.co,
-      vocs: dataToProcess.vocs,
-      ch4Lpg: dataToProcess.ch4Lpg,
-      pm1_0: dataToProcess.pm1_0,
-      pm2_5: dataToProcess.pm2_5,
-      pm10_0: dataToProcess.pm10_0,
-    };
-    const recommendationsInput: ActionRecommendationsInput = {
-      co: dataToProcess.co,
-      vocs: dataToProcess.vocs,
-      ch4Lpg: dataToProcess.ch4Lpg,
-      pm1_0: dataToProcess.pm1_0,
-      pm2_5: dataToProcess.pm2_5,
-      pm10: dataToProcess.pm10_0,
-    };
-    Promise.all([
+
+    try {
+      const analysisInput: AirQualityAnalysisInput = {
+        co: dataToProcess.co,
+        vocs: dataToProcess.vocs,
+        ch4Lpg: dataToProcess.ch4Lpg,
+        pm1_0: dataToProcess.pm1_0,
+        pm2_5: dataToProcess.pm2_5,
+        pm10_0: dataToProcess.pm10_0,
+      };
+      const recommendationsInput: ActionRecommendationsInput = {
+        co: dataToProcess.co,
+        vocs: dataToProcess.vocs,
+        ch4Lpg: dataToProcess.ch4Lpg,
+        pm1_0: dataToProcess.pm1_0,
+        pm2_5: dataToProcess.pm2_5,
+        pm10: dataToProcess.pm10_0,
+      };
+      
+      const [analysisResult, recommendationsResult] = await Promise.all([
         fetchAiAnalysis(analysisInput),
         fetchActionRecommendations(recommendationsInput),
-      ]).then(([analysisResult, recommendationsResult]) => {
-        setAiAnalysis(analysisResult.summary);
-        setActionRecommendations(recommendationsResult.recommendations);
-        setLastProcessedForAI(dataToProcess);
-      }).catch (error => {
-        console.error("Error fetching AI data in updateAiData:", error);
-        setAiAnalysis("Could not retrieve AI analysis at this time.");
-        setActionRecommendations(["Could not retrieve recommendations at this time."]);
-      }).finally(() => {
-        setIsLoadingAnalysis(false);
-        setIsLoadingRecommendations(false);
-      });
+      ]);
+      
+      setAiAnalysis(analysisResult.summary);
+      setActionRecommendations(recommendationsResult.recommendations);
+      lastAiUpdateTimestampRef.current = Date.now();
+
+    } catch (error) {
+      console.error("Error fetching AI data in updateAiData:", error);
+      setAiAnalysis("Could not retrieve AI analysis at this time.");
+      setActionRecommendations(["Could not retrieve recommendations at this time."]);
+    } finally {
+      setIsLoadingAnalysis(false);
+      setIsLoadingRecommendations(false);
+    }
   }, []); 
 
   useEffect(() => {
@@ -187,6 +192,10 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       
       if (!fbData) {
         setCurrentData(null);
+        if (initialSensorLoadDoneRef.current) {
+            setIsLoadingAnalysis(false);
+            setIsLoadingRecommendations(false);
+        }
         return; 
       }
       
@@ -202,11 +211,25 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       setHistoricalData(prevHist => {
         const recordTimestamp = fbData?.timestamp ? fbData.timestamp * 1000 : Date.now();
         const newHistEntry: HistoricalAirQualityReading = { ...appData, timestamp: new Date(recordTimestamp) };
+        
+        // Prevent duplicate timestamps if data arrives too quickly
+        if (prevHist.length > 0 && prevHist[prevHist.length - 1].timestamp.getTime() === newHistEntry.timestamp.getTime()) {
+            return prevHist;
+        }
+        
         const updatedHist = [ ...prevHist, newHistEntry];
         return updatedHist.slice(-MAX_HISTORICAL_READINGS);
       });
       
       checkForNotifications(appData, thresholds); 
+
+      // Trigger AI update if polling interval has passed
+      const now = Date.now();
+      if (now - lastAiUpdateTimestampRef.current > POLLING_INTERVAL_MS) {
+        updateAiData(appData);
+      } else if (lastAiUpdateTimestampRef.current === 0) { // Also run on first load
+        updateAiData(appData);
+      }
     };
 
     const handleError = (error: Error) => {
@@ -216,6 +239,8 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       }
       console.error("Firebase data error:", error);
       setCurrentData(null);
+      setIsLoadingAnalysis(false);
+      setIsLoadingRecommendations(false);
     };
 
     onValue(sensorDataQuery, handleData, handleError);
@@ -224,7 +249,7 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       off(sensorDataQuery, 'value', handleData);
       initialSensorLoadDoneRef.current = false; 
     };
-  }, [mapFirebaseToAppReading, checkForNotifications, thresholds]);
+  }, [mapFirebaseToAppReading, checkForNotifications, thresholds, updateAiData]);
 
   useEffect(() => {
     const thresholdsPathRef = ref(database, USER_THRESHOLDS_PATH);
@@ -255,16 +280,6 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
       off(thresholdsPathRef, 'value', handleThresholdData);
     };
   }, []); 
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (currentDataRef.current && !isLoadingAnalysisRef.current && !isLoadingRecommendationsRef.current) {
-        updateAiData(currentDataRef.current);
-      }
-    }, POLLING_INTERVAL_MS);
-
-    return () => clearInterval(intervalId);
-  }, [updateAiData]); 
 
 
   const updateThreshold = (pollutantId: keyof AirQualityReading, value: number) => {
@@ -306,3 +321,5 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
+
+    
