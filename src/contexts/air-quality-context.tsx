@@ -321,5 +321,3 @@ export const useAirQuality = (): AirQualityContextType => {
   }
   return context;
 };
-
-    
