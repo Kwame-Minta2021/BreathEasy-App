@@ -11,6 +11,7 @@ import { INITIAL_POLLUTANTS_FOR_CHART } from '@/lib/constants';
 import { TopActionsBar } from '@/components/layout/top-actions-bar';
 import { DateRangePicker } from '@/components/ui/date-range-picker'; 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ColorKeyLegend } from '@/components/dashboard/color-key-legend';
 
 export default function DashboardPage() {
   const {
@@ -49,7 +50,15 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <CurrentReadingsGrid currentData={currentData} isLoading={!currentData} />
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+              <h2 className="text-2xl font-semibold font-headline">
+                Current Air Quality
+              </h2>
+              <ColorKeyLegend />
+            </div>
+            <CurrentReadingsGrid currentData={currentData} isLoading={!currentData} />
+          </div>
           
           <Card className="shadow-lg">
             <CardHeader>

@@ -18,7 +18,7 @@ const pollutantsList: Pollutant[] = [
 export function CurrentReadingsGrid({ currentData, isLoading }: CurrentReadingsGridProps) {
   return (
     <section aria-labelledby="current-readings-title">
-      <h2 id="current-readings-title" className="text-2xl font-semibold mb-4 font-headline">
+      <h2 id="current-readings-title" className="sr-only">
         Current Air Quality
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">

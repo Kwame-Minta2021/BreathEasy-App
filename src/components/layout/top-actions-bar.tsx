@@ -82,7 +82,7 @@ export function TopActionsBar() {
         ) : (
           <PhoneForwarded className="mr-2 h-4 w-4" />
         )}
-        {isReporting ? "Reporting..." : "Report to Control Room"}
+        {isReporting ? "Reporting..." : "Send SMS Notifications"}
       </Button>
       <Button variant="outline" onClick={navigateToReinforcementAnalysis} className="w-full sm:w-auto">
         <BarChartBig className="mr-2 h-4 w-4" />
