@@ -71,26 +71,24 @@ const airQualityChatbotFlow = ai.defineFlow(
     const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy. Your role is to answer questions based ONLY on the provided context.
 - Your main tasks are:
   1. Provide information from the application's data (current levels, historical trends, alerts).
-  2. Give health advice related to the provided air quality data.
-  3. Suggest actions based on the data.
-  4. Answer general knowledge questions about the specific pollutants in the data.
-- If a question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy app.
+  2. Answer general knowledge questions about the specific pollutants in the data (CO, VOCs, CH4/LPG, PM1.0, PM2.5, PM10).
+- If a question is outside these topics, politely state that you can only answer questions related to the air quality data and general pollutant information. For example, if asked "What is the weather like?", you must decline.
 - Do NOT use Markdown formatting in your responses. Provide answers in plain text.
 - If the sensor is offline ('currentData' is null), inform the user and use the most recent reading from 'historicalData' to answer questions about "current" conditions, stating the timestamp of that reading.
-- Base your entire response on the JSON data provided in this prompt.
+- Base your entire response on the JSON data provided in this prompt. Do not invent data.
 - Here is the full data context for the user's question:
   - Current Readings: ${JSON.stringify(currentData, null, 2)}
   - Recent Historical Data: ${JSON.stringify(historicalData, null, 2)}
   - Active Notifications: ${JSON.stringify(notifications, null, 2)}
 `;
     
-    const generateResponse = await ai.generate({
+    const { output } = await ai.generate({
       // We pass the system prompt and the full user history.
       system: systemPrompt,
       history: history, 
     });
     
-    const text = generateResponse.text;
+    const text = output?.text;
     if (!text) {
       throw new Error("The AI model did not return a text response.");
     }

@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SheetTitle } from '@/components/ui/sheet';
+import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
 
 
 interface AppLayoutProps {
@@ -36,6 +37,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [appLayoutMounted, setAppLayoutMounted] = React.useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   
   const sidebarHookResult = useSidebar();
   const { setTheme, resolvedTheme } = useTheme();
@@ -77,6 +79,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarContent>
         <SidebarFooter className="p-2 flex flex-col">
           <SidebarMenu className="space-y-1">
+            <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsChatbotOpen(true)}
+                  className="w-full"
+                  tooltip={{ children: "AI Assistant", side: "right", align: "center" }}
+                >
+                  <MessageCircle />
+                  <span>AI Assistant</span>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+
             <SidebarMenuItem>
               <NotificationsSidebar />
             </SidebarMenuItem>
@@ -141,6 +154,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </SidebarInset>
+      <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
       <Toaster />
     </>
   );

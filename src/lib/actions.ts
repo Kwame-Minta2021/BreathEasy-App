@@ -14,6 +14,8 @@ import type { HealthRisksInput, HealthRisksOutput } from '@/ai/flows/health-risk
 import { getHealthRisks } from '@/ai/flows/health-risks';
 import type { ReportToControlRoomInput, ReportToControlRoomOutput } from '@/services/sms';
 import { reportToControlRoom as reportToControlRoomFlow } from '@/services/sms';
+import type { AirQualityChatbotInput, AirQualityChatbotOutput } from '@/ai/flows/air-quality-chatbot';
+import { airQualityChatbot } from '@/ai/flows/air-quality-chatbot';
 
 
 function logDetailedError(actionName: string, error: any) {
@@ -87,4 +89,16 @@ export async function reportToControlRoom(input: ReportToControlRoomInput): Prom
             confirmationMessage: `Failed to send report: ${(error as Error).message || "Unknown error"}`,
         };
     }
+}
+
+export async function askChatbot(input: AirQualityChatbotInput): Promise<AirQualityChatbotOutput> {
+  try {
+    const result = await airQualityChatbot(input);
+    return result;
+  } catch (error: any) {
+    logDetailedError('askChatbot', error);
+    return {
+      answer: 'The chatbot is currently unavailable. Please try again later.',
+    };
+  }
 }
