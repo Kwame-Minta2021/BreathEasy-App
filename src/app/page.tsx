@@ -12,19 +12,67 @@ import { TopActionsBar } from '@/components/layout/top-actions-bar';
 import { DateRangePicker } from '@/components/ui/date-range-picker'; 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ColorKeyLegend } from '@/components/dashboard/color-key-legend';
+import { fetchAiAnalysis, fetchActionRecommendations } from '@/lib/actions';
 
 export default function DashboardPage() {
   const {
     currentData,
     historicalData,
     aiAnalysis,
+    setAiAnalysis,
     actionRecommendations,
+    setActionRecommendations,
     isLoadingReadings,
     isLoadingAnalysis,
+    setIsLoadingAnalysis,
     isLoadingRecommendations,
+    setIsLoadingRecommendations,
     dateRange, 
     setDateRange, 
   } = useAirQuality();
+
+  const loadAiData = React.useCallback(async () => {
+    if (!currentData) return;
+
+    setIsLoadingAnalysis(true);
+    setIsLoadingRecommendations(true);
+    try {
+      const [analysisResult, recommendationsResult] = await Promise.all([
+        fetchAiAnalysis({
+          co: currentData.co,
+          vocs: currentData.vocs,
+          ch4Lpg: currentData.ch4Lpg,
+          pm1_0: currentData.pm1_0,
+          pm2_5: currentData.pm2_5,
+          pm10_0: currentData.pm10_0,
+        }),
+        fetchActionRecommendations({
+          co: currentData.co,
+          vocs: currentData.vocs,
+          ch4Lpg: currentData.ch4Lpg,
+          pm1_0: currentData.pm1_0,
+          pm2_5: currentData.pm2_5,
+          pm10: currentData.pm10_0,
+        }),
+      ]);
+      setAiAnalysis(analysisResult.summary);
+      setActionRecommendations(recommendationsResult.recommendations);
+    } catch (error) {
+      console.error("Error fetching AI data on dashboard:", error);
+      setAiAnalysis("Could not retrieve AI analysis.");
+      setActionRecommendations(["Could not retrieve recommendations."]);
+    } finally {
+      setIsLoadingAnalysis(false);
+      setIsLoadingRecommendations(false);
+    }
+  }, [currentData, setAiAnalysis, setActionRecommendations, setIsLoadingAnalysis, setIsLoadingRecommendations]);
+
+  React.useEffect(() => {
+    if (currentData) {
+      loadAiData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentData]);
   
   const filteredHistoricalData = React.useMemo(() => {
     if (!dateRange?.from) return historicalData; 
