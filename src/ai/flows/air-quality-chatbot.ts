@@ -11,10 +11,38 @@
 
 import {ai} from '@/ai/genkit';
 import {z, Message} from 'genkit';
+import type { AirQualityReading, AppNotification } from '@/types';
+
+// Define Zod schemas for the context data
+const AirQualityReadingSchema = z.object({
+  co: z.number(),
+  vocs: z.number(),
+  ch4Lpg: z.number(),
+  pm1_0: z.number(),
+  pm2_5: z.number(),
+  pm10_0: z.number(),
+});
+
+const HistoricalReadingSchema = AirQualityReadingSchema.extend({
+    timestamp: z.string(),
+});
+
+const NotificationSchema = z.object({
+    id: z.string(),
+    pollutantId: z.string(),
+    pollutantName: z.string(),
+    value: z.number(),
+    threshold: z.number(),
+    timestamp: z.string(),
+    message: z.string(),
+});
 
 
 const AirQualityChatbotInputSchema = z.object({
-  history: z.array(Message.schema).describe('The conversation history, including the latest user question which contains the full context.'),
+  history: z.array(Message.schema).describe('The conversation history.'),
+  currentData: AirQualityReadingSchema.nullable().describe("The current, real-time air quality readings. This might be null if the sensor is offline."),
+  historicalData: z.array(HistoricalReadingSchema).describe("An array of the last 10 historical readings to provide trend context."),
+  notifications: z.array(NotificationSchema).describe("An array of the last 5 active notifications or alerts.")
 });
 export type AirQualityChatbotInput = z.infer<typeof AirQualityChatbotInputSchema>;
 
@@ -33,9 +61,9 @@ const airQualityChatbotFlow = ai.defineFlow(
     inputSchema: AirQualityChatbotInputSchema,
     outputSchema: AirQualityChatbotOutputSchema,
   },
-  async ({history}) => {
+  async ({history, currentData, historicalData, notifications}) => {
     
-    const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy. Your role is to answer questions based ONLY on the provided context. The user's last message will contain their question and a JSON object with all relevant data.
+    const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy. Your role is to answer questions based ONLY on the provided context.
 - Your main tasks are:
   1.  Provide information from the application's data (current levels, historical trends, alerts).
   2.  Give health advice related to the provided air quality data.
@@ -44,10 +72,19 @@ const airQualityChatbotFlow = ai.defineFlow(
 - If a question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy app.
 - Do NOT use Markdown formatting in your responses. Provide answers in plain text.
 - If the sensor is offline ('currentReadings' is null), inform the user and use the most recent reading from 'historicalData' to answer questions about "current" conditions, stating the timestamp of that reading.
-- Base your entire response on the JSON data provided in the user's last message.`;
+- Base your entire response on the JSON data provided in this prompt.`;
 
+    const contextMessage = `Here is the full data context for the user's question:
+- Current Readings: ${JSON.stringify(currentData, null, 2)}
+- Recent Historical Data: ${JSON.stringify(historicalData, null, 2)}
+- Active Notifications: ${JSON.stringify(notifications, null, 2)}
+`;
+
+    // The history already contains the user's latest question.
+    // We add the system prompt and the context as the first two messages.
     const messages: Message[] = [
       { role: 'system', content: [{ text: systemPrompt }] },
+      { role: 'system', content: [{ text: contextMessage }] },
       ...history
     ];
 

@@ -51,11 +51,19 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
       content: userQuestion,
     };
     
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages: ChatMessage[] = [...messages, userMessage];
+    setMessages(newMessages);
     setInputValue('');
     setIsLoading(true);
 
     try {
+      // Map ChatMessage[] to Genkit's Message[] format
+      const historyForApi: Message[] = newMessages.map(msg => ({
+          role: msg.role,
+          content: [{ text: msg.content }],
+      }));
+
+      // Prepare context data
       const historicalForApi = historicalData.slice(-10).map(r => ({
         ...r,
         timestamp: r.timestamp.toISOString(),
@@ -66,30 +74,12 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
         timestamp: n.timestamp.toISOString(),
       }));
       
-      const context = {
-          currentReadings: currentData,
+      const response = await askChatbot({
+          history: historyForApi,
+          currentData,
           historicalData: historicalForApi,
-          activeNotifications: notificationsForApi,
-      };
-
-      // Combine user question with the full context.
-      const contentWithContext = `${userQuestion}
-
-Here is the data context for my question:
-${JSON.stringify(context, null, 2)}`;
-
-      const historyForApi: Message[] = [
-        ...messages.map(msg => ({
-            role: msg.role,
-            content: [{ text: msg.content }],
-        })),
-        { // The new user message with the full context
-            role: 'user',
-            content: [{ text: contentWithContext }]
-        }
-      ];
-      
-      const response = await askChatbot({ history: historyForApi });
+          notifications: notificationsForApi,
+      });
       
       const botMessage: ChatMessage = {
         role: 'model',
