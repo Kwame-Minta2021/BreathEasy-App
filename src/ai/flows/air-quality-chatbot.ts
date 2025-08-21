@@ -73,18 +73,7 @@ const airQualityChatbotFlow = ai.defineFlow(
       ? `There are ${historicalData.length} historical readings available, from ${historicalData[0].timestamp} to ${historicalData[historicalData.length - 1].timestamp}. The latest historical reading is from ${historicalData[historicalData.length-1].timestamp}.`
       : 'No historical data is available.';
 
-    const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy.
-Your role is to answer questions ONLY about the following topics:
-1.  Information available on the application's dashboard (e.g., current pollutant levels, historical trends, active notifications).
-2.  Health advice related to the air quality data presented.
-3.  Recommendations for actions to take based on the air quality data.
-4.  General knowledge about air pollutants and their sources.
-
-If the question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy application.
-Do NOT use Markdown formatting in your responses. Provide answers in plain text.
-
-Use the provided context below to answer the user's question. If the sensor is offline (currentReadings is null), use the most recent reading from the historical data to answer questions about "current" or "latest" conditions, and state the timestamp of that reading.
-
+    const contextBlock = `
 [CONTEXT]
 Current Air Quality Readings:
 ${currentReadings ? `
@@ -103,10 +92,30 @@ Active System Notifications:
 ${activeNotifications.length > 0 ? `There are ${activeNotifications.length} active alerts. The most recent is: "${activeNotifications[0].message}"` : 'There are no active alerts.'}
 [/CONTEXT]
 `;
+    
+    const systemMessageContent = `You are an AI chatbot for an air quality monitoring application called BreathEasy.
+Your role is to answer questions ONLY about the following topics:
+1.  Information available on the application's dashboard (e.g., current pollutant levels, historical trends, active notifications).
+2.  Health advice related to the air quality data presented.
+3.  Recommendations for actions to take based on the air quality data.
+4.  General knowledge about air pollutants and their sources.
+
+If the question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy application.
+Do NOT use Markdown formatting in your responses. Provide answers in plain text.
+
+Use the provided context below to answer the user's question. If the sensor is offline (currentReadings is null), use the most recent reading from the historical data to answer questions about "current" or "latest" conditions, and state the timestamp of that reading.
+
+${contextBlock}
+`;
+
+    // Prepend the system prompt and context to the history
+    const historyWithSystemPrompt: Message[] = [
+      { role: 'system', content: [{ text: systemMessageContent }] },
+      ...history,
+    ];
 
     const {text} = await ai.generate({
-      history: history,
-      system: systemPrompt,
+      history: historyWithSystemPrompt,
     });
     
     if (!text) {
