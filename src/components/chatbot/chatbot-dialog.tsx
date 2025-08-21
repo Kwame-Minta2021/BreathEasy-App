@@ -50,10 +50,6 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
       role: 'user',
       content: userQuestion,
     };
-    
-    // We only include messages that are not the initial greeting.
-    const currentHistory = messages.filter(m => m.content !== "Hello! How can I help you with your air quality questions today?");
-    const newMessages: ChatMessage[] = [...currentHistory, userMessage];
 
     // Update UI immediately
     setMessages(prev => [...prev, userMessage]);
@@ -61,10 +57,13 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
     setIsLoading(true);
 
     try {
-      // Map our internal ChatMessage[] to Genkit's Message[] format
-      const historyForApi: Message[] = newMessages.map(msg => ({
+      // We only include messages that are not the initial greeting.
+      const currentHistory = messages.filter(m => m.content !== "Hello! How can I help you with your air quality questions today?");
+      
+      // Map our internal ChatMessage[] to Genkit's Message[] format, including the new user message.
+      const historyForApi: Message[] = [...currentHistory, userMessage].map(msg => ({
           role: msg.role,
-          content: [{ text: msg.content }],
+          content: [{ text: msg.content }], // CRITICAL: Content must be an array of parts.
       }));
 
       // Prepare context data, ensuring timestamps are in a standard string format
@@ -75,7 +74,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
 
       const notificationsForApi = notifications.slice(0, 5).map(n => ({
         ...n,
-        timestamp: n.timestamp.toISOString(),
+        timestamp: n.timestamp, // Assuming timestamp is already a string or Date object
       }));
       
       const response = await askChatbot({
