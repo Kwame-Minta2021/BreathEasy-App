@@ -11,42 +11,14 @@
 
 import {ai} from '@/ai/genkit';
 import {z, Message} from 'genkit';
-
-// Define a base Zod schema for the air quality reading object
-const AirQualityReadingObjectSchema = z.object({
-  co: z.number(),
-  vocs: z.number(),
-  ch4Lpg: z.number(),
-  pm1_0: z.number(),
-  pm2_5: z.number(),
-  pm10_0: z.number(),
-});
-
-// Create a nullable version for current readings
-const AirQualityReadingSchema = AirQualityReadingObjectSchema.nullable();
-
-// Create a non-nullable version for historical data and extend it
-const HistoricalAirQualityReadingSchema = AirQualityReadingObjectSchema.extend({
-  timestamp: z.string().datetime(),
-});
-
-
-const AppNotificationSchema = z.object({
-    id: z.string(),
-    pollutantId: z.string(),
-    pollutantName: z.string(),
-    value: z.number(),
-    threshold: z.number(),
-    timestamp: z.string().datetime(),
-    message: z.string(),
-});
+import type { HistoricalAirQualityReading, AirQualityReading, AppNotification } from '@/types';
 
 
 const AirQualityChatbotInputSchema = z.object({
   history: z.array(Message.schema).describe('The conversation history, including the latest user question.'),
-  currentReadings: AirQualityReadingSchema.describe('Current air quality data. Can be null if sensor is offline.'),
-  historicalData: z.array(HistoricalAirQualityReadingSchema).describe('Recent historical air quality readings.'),
-  activeNotifications: z.array(AppNotificationSchema).describe('A list of currently active notifications or alerts.'),
+  currentReadings: z.custom<AirQualityReading>().nullable().describe('Current air quality data. Can be null if sensor is offline.'),
+  historicalData: z.array(z.custom<HistoricalAirQualityReading>()).describe('Recent historical air quality readings.'),
+  activeNotifications: z.array(z.custom<AppNotification>()).describe('A list of currently active notifications or alerts.'),
 });
 export type AirQualityChatbotInput = z.infer<typeof AirQualityChatbotInputSchema>;
 
@@ -70,7 +42,7 @@ const airQualityChatbotFlow = ai.defineFlow(
     // The history already contains the user's latest question.
     // We construct a system prompt to guide the model.
     const systemPrompt = `You are an AI chatbot for an air quality monitoring application called BreathEasy. Your role is to answer questions based ONLY on the provided context.
-- The context includes current readings, historical data, and active notifications.
+- The context includes current readings, historical data, and active notifications, all provided in JSON format.
 - Your main tasks are:
   1.  Provide information from the application's data (current levels, historical trends, alerts).
   2.  Give health advice related to the provided air quality data.
