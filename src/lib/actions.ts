@@ -5,8 +5,6 @@ import type { AirQualityAnalysisInput, AirQualityAnalysisOutput } from '@/ai/flo
 import { analyzeAirQuality } from '@/ai/flows/air-quality-analysis';
 import type { ActionRecommendationsInput, ActionRecommendationsOutput } from '@/ai/flows/action-recommendations';
 import { getActionRecommendations } from '@/ai/flows/action-recommendations';
-import type { AirQualityChatbotInput, AirQualityChatbotOutput } from '@/ai/flows/air-quality-chatbot';
-import { airQualityChatbot } from '@/ai/flows/air-quality-chatbot';
 
 import type { Forecast24hInput, Forecast24hOutput } from '@/ai/flows/forecast-24h';
 import { forecast24h } from '@/ai/flows/forecast-24h';
@@ -46,17 +44,6 @@ export async function fetchActionRecommendations(data: ActionRecommendationsInpu
   } catch (error: any) {
     logDetailedError("fetchActionRecommendations", error);
     return { recommendations: ["Could not retrieve recommendations at this time."] };
-  }
-}
-
-export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQualityChatbotOutput> {
-  try {
-    const result = await airQualityChatbot(data);
-    return result;
-  } catch (error: any)
-{
-    logDetailedError("askChatbot", error);
-    return { answer: "The chatbot is currently unavailable. Please try again later." };
   }
 }
 

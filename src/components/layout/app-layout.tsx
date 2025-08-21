@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/sidebar';
 import { SidebarNav } from './sidebar-nav';
 import { NotificationsSidebar } from '@/components/dashboard/notifications-sidebar';
-import { ChatbotDialog } from '@/components/chatbot/chatbot-dialog';
 import { Leaf, MessageCircle, Settings as SettingsIcon, Sun, Moon, Loader2 } from 'lucide-react';
 import { APP_NAME } from '@/lib/constants';
 import { Toaster } from "@/components/ui/toaster";
@@ -37,7 +36,6 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [appLayoutMounted, setAppLayoutMounted] = React.useState(false);
-  const [isChatbotOpen, setIsChatbotOpen] = React.useState(false);
   
   const sidebarHookResult = useSidebar();
   const { setTheme, resolvedTheme } = useTheme();
@@ -79,17 +77,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         </SidebarContent>
         <SidebarFooter className="p-2 flex flex-col">
           <SidebarMenu className="space-y-1">
-            <SidebarMenuItem>
-                <SidebarMenuButton
-                    onClick={() => setIsChatbotOpen(true)}
-                    tooltip={{ children: "AI Assistant", side: "right", align: "center" }}
-                    className="w-full"
-                >
-                    <MessageCircle />
-                    <span>AI Assistant</span>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-
             <SidebarMenuItem>
               <NotificationsSidebar />
             </SidebarMenuItem>
@@ -154,7 +141,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </SidebarInset>
-      <ChatbotDialog isOpen={isChatbotOpen} onOpenChange={setIsChatbotOpen} />
       <Toaster />
     </>
   );
