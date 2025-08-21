@@ -51,19 +51,23 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
       content: userQuestion,
     };
     
-    const newMessages: ChatMessage[] = [...messages, userMessage];
-    setMessages(newMessages);
+    // We only include messages that are not the initial greeting.
+    const currentHistory = messages.filter(m => m.content !== "Hello! How can I help you with your air quality questions today?");
+    const newMessages: ChatMessage[] = [...currentHistory, userMessage];
+
+    // Update UI immediately
+    setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Map ChatMessage[] to Genkit's Message[] format
+      // Map our internal ChatMessage[] to Genkit's Message[] format
       const historyForApi: Message[] = newMessages.map(msg => ({
           role: msg.role,
           content: [{ text: msg.content }],
       }));
 
-      // Prepare context data
+      // Prepare context data, ensuring timestamps are in a standard string format
       const historicalForApi = historicalData.slice(-10).map(r => ({
         ...r,
         timestamp: r.timestamp.toISOString(),
@@ -154,7 +158,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
           </div>
         </ScrollArea>
         <Separator />
-        <DialogFooter className="p-4 pt-2 sm:p-6 sm:pt-2 border-t">
+        <DialogFooter className="p-4 pt-2 sm:p-6 sm:pt-2">
           <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
             <Input
               type="text"

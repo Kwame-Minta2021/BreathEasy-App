@@ -11,7 +11,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z, Message} from 'genkit';
-import type { AirQualityReading, AppNotification } from '@/types';
+import type { AirQualityReading, HistoricalAirQualityReading, AppNotification } from '@/types';
+
 
 // Define Zod schemas for the context data
 const AirQualityReadingSchema = z.object({
@@ -21,9 +22,15 @@ const AirQualityReadingSchema = z.object({
   pm1_0: z.number(),
   pm2_5: z.number(),
   pm10_0: z.number(),
-});
+}).nullable();
 
-const HistoricalReadingSchema = AirQualityReadingSchema.extend({
+const HistoricalReadingSchema = z.object({
+    co: z.number(),
+    vocs: z.number(),
+    ch4Lpg: z.number(),
+    pm1_0: z.number(),
+    pm2_5: z.number(),
+    pm10_0: z.number(),
     timestamp: z.string(),
 });
 
@@ -40,7 +47,7 @@ const NotificationSchema = z.object({
 
 const AirQualityChatbotInputSchema = z.object({
   history: z.array(Message.schema).describe('The conversation history.'),
-  currentData: AirQualityReadingSchema.nullable().describe("The current, real-time air quality readings. This might be null if the sensor is offline."),
+  currentData: AirQualityReadingSchema.describe("The current, real-time air quality readings. This might be null if the sensor is offline."),
   historicalData: z.array(HistoricalReadingSchema).describe("An array of the last 10 historical readings to provide trend context."),
   notifications: z.array(NotificationSchema).describe("An array of the last 5 active notifications or alerts.")
 });
@@ -71,7 +78,7 @@ const airQualityChatbotFlow = ai.defineFlow(
   4.  Answer general knowledge questions about the specific pollutants in the data.
 - If a question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy app.
 - Do NOT use Markdown formatting in your responses. Provide answers in plain text.
-- If the sensor is offline ('currentReadings' is null), inform the user and use the most recent reading from 'historicalData' to answer questions about "current" conditions, stating the timestamp of that reading.
+- If the sensor is offline ('currentData' is null), inform the user and use the most recent reading from 'historicalData' to answer questions about "current" conditions, stating the timestamp of that reading.
 - Base your entire response on the JSON data provided in this prompt.`;
 
     const contextMessage = `Here is the full data context for the user's question:
@@ -89,7 +96,8 @@ const airQualityChatbotFlow = ai.defineFlow(
     ];
 
     const generateResponse = await ai.generate({
-      history: messages,
+      // We are passing the modified messages array which includes our system prompts and context.
+      history: messages, 
     });
     
     const text = generateResponse.text;
