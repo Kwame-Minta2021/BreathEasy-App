@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { askChatbot } from '@/lib/actions';
 import { Separator } from '../ui/separator';
-import type { ChatMessage, HistoricalAirQualityReading, AppNotification } from '@/types';
+import type { ChatMessage } from '@/types';
 import { useAirQuality } from '@/contexts/air-quality-context';
 import { Message } from 'genkit';
 
@@ -50,32 +50,36 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
       content: inputValue,
     };
     
+    // Add user message to state immediately for responsive UI
     const newMessages: ChatMessage[] = [...messages, userMessage];
     setMessages(newMessages);
+    const question = inputValue;
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Map ChatMessage to Genkit's Message schema before sending
+      // Map our simple ChatMessage to Genkit's Message schema before sending
       const historyForApi: Message[] = newMessages.map(msg => ({
         role: msg.role,
         content: [{ text: msg.content }],
       }));
 
-      // Prepare historical data and notifications for the API
-      const historicalForApi = historicalData.slice(-100).map(r => ({ // Send last 100 readings
+      // The last message is the actual current question, which we've already added to the history.
+      // So we just pass the whole history.
+      
+      const historicalForApi = historicalData.slice(-10).map(r => ({
         ...r,
         timestamp: r.timestamp.toISOString(),
       }));
 
-      const notificationsForApi = notifications.slice(0, 5).map(n => ({ // Send last 5 notifications
+      const notificationsForApi = notifications.slice(0, 5).map(n => ({
         ...n,
         timestamp: n.timestamp.toISOString(),
       }));
 
 
       const response = await askChatbot({ 
-        history: historyForApi, 
+        history: historyForApi,
         currentReadings: currentData,
         historicalData: historicalForApi,
         activeNotifications: notificationsForApi,
