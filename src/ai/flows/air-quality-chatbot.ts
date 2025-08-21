@@ -82,15 +82,10 @@ Your role is to answer questions ONLY about the following topics:
 
 If the question is outside these topics, politely state that you can only answer questions related to air quality and the BreathEasy application.
 Do NOT use Markdown formatting in your responses. Provide answers in plain text.
-When asked about past data, you can confirm you have access to it and provide trends or look for specific past events if asked.
-If the sensor is offline, use the most recent reading from the historical data to answer questions about "current" or "latest" conditions, and state the timestamp of that reading.`;
 
-    const userQuestion = history[history.length - 1].content[0].text;
+Use the provided context below to answer the user's question. If the sensor is offline (currentReadings is null), use the most recent reading from the historical data to answer questions about "current" or "latest" conditions, and state the timestamp of that reading.
 
-    const contextPrompt = `
-Here is the context to answer the user's question:
-User's Question: "${userQuestion}"
-
+[CONTEXT]
 Current Air Quality Readings:
 ${currentReadings ? `
 - CO: ${currentReadings.co.toFixed(1)} ppm
@@ -106,14 +101,11 @@ ${historicalSummary}
 
 Active System Notifications:
 ${activeNotifications.length > 0 ? `There are ${activeNotifications.length} active alerts. The most recent is: "${activeNotifications[0].message}"` : 'There are no active alerts.'}
+[/CONTEXT]
 `;
 
-    // We replace the last user message with our context-rich prompt
-    const newHistory = history.slice(0, -1);
-    newHistory.push({ role: 'user', content: [{ text: contextPrompt }] });
-
     const {text} = await ai.generate({
-      history: newHistory,
+      history: history,
       system: systemPrompt,
     });
     
