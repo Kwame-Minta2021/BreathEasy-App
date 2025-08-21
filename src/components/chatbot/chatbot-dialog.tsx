@@ -45,28 +45,17 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
+    const userQuestion = inputValue;
     const userMessage: ChatMessage = {
       role: 'user',
-      content: inputValue,
+      content: userQuestion,
     };
     
-    // Add user message to state immediately for responsive UI
-    const newMessages: ChatMessage[] = [...messages, userMessage];
-    setMessages(newMessages);
-    const question = inputValue;
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Map our simple ChatMessage to Genkit's Message schema before sending
-      const historyForApi: Message[] = newMessages.map(msg => ({
-        role: msg.role,
-        content: [{ text: msg.content }],
-      }));
-
-      // The last message is the actual current question, which we've already added to the history.
-      // So we just pass the whole history.
-      
       const historicalForApi = historicalData.slice(-10).map(r => ({
         ...r,
         timestamp: r.timestamp.toISOString(),
@@ -76,14 +65,31 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
         ...n,
         timestamp: n.timestamp.toISOString(),
       }));
+      
+      const context = {
+          currentReadings: currentData,
+          historicalData: historicalForApi,
+          activeNotifications: notificationsForApi,
+      };
 
+      // Combine user question with the full context.
+      const contentWithContext = `${userQuestion}
 
-      const response = await askChatbot({ 
-        history: historyForApi,
-        currentReadings: currentData,
-        historicalData: historicalForApi,
-        activeNotifications: notificationsForApi,
-      });
+Here is the data context for my question:
+${JSON.stringify(context, null, 2)}`;
+
+      const historyForApi: Message[] = [
+        ...messages.map(msg => ({
+            role: msg.role,
+            content: [{ text: msg.content }],
+        })),
+        { // The new user message with the full context
+            role: 'user',
+            content: [{ text: contentWithContext }]
+        }
+      ];
+      
+      const response = await askChatbot({ history: historyForApi });
       
       const botMessage: ChatMessage = {
         role: 'model',
@@ -91,6 +97,7 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
+      console.error("Error in chatbot dialog:", error);
       const errorMessage: ChatMessage = {
         role: 'model',
         content: 'Sorry, I encountered an error. Please try again.',
@@ -132,10 +139,10 @@ export function ChatbotDialog({ isOpen, onOpenChange }: ChatbotDialogProps) {
                   className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
                     message.role === 'user'
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
+                      : 'bg-muted' 
                   }`}
                 >
-                  {message.content}
+                  <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>
                 {message.role === 'user' && (
                    <Avatar className="h-8 w-8">

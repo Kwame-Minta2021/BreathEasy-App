@@ -53,7 +53,8 @@ export async function askChatbot(data: AirQualityChatbotInput): Promise<AirQuali
   try {
     const result = await airQualityChatbot(data);
     return result;
-  } catch (error: any) {
+  } catch (error: any)
+{
     logDetailedError("askChatbot", error);
     return { answer: "The chatbot is currently unavailable. Please try again later." };
   }
