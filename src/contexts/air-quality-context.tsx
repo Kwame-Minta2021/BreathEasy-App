@@ -89,8 +89,8 @@ export const AirQualityProvider: React.FC<{ children: ReactNode }> = ({ children
   const mapFirebaseToAppReading = useCallback((fbReading: FirebaseSensorReading): AirQualityReading => {
     return {
       co: fbReading.CO_ppm ?? 0,
-      vocs: fbReading.VOCs_ppm ?? 0,
-      ch4Lpg: fbReading.CH4_LPG_ppm ?? 0,
+      vocs: (fbReading.VOCs_ppm ?? 0),
+      ch4Lpg: (fbReading.CH4_LPG_ppm ?? 0) / 1000,
       pm1_0: fbReading.PM1_0_ug_m3 ?? 0,
       pm2_5: fbReading.PM2_5_ug_m3 ?? 0,
       pm10_0: fbReading.PM10_ug_m3 ?? 0,
